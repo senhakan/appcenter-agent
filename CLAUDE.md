@@ -31,6 +31,10 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `cmd/service/service_windows.go` (Windows service lifecycle: start/stop/shutdown)
   - `cmd/service/core.go` (service/console ortak runtime çekirdeği)
   - `build/build.bat`, `build/service-install.bat`
+- Faz 5 tamamlandı:
+  - `internal/ipc/namedpipe_windows.go`, `internal/ipc/namedpipe_nonwindows.go`, `internal/ipc/namedpipe.go`
+  - `cmd/service/core.go` içinde IPC server + handler (`get_status`, `get_store`, `install_from_store`)
+  - `cmd/tray/main.go` içinde IPC client (CLI tabanlı)
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -174,9 +178,9 @@ agent/
 **Test:** `sc create AppCenterAgent` → reboot → otomatik başlıyor mu?
 
 ### Faz 5: Named Pipe IPC
-1. `internal/ipc/namedpipe.go` - Pipe server (service tarafı)
-2. `internal/ipc/namedpipe.go` - Pipe client (tray tarafı)
-3. Request/Response tipleri: get_status, install_from_store, get_store
+1. [x] `internal/ipc/namedpipe_windows.go` - Pipe server (service tarafı)
+2. [x] `internal/ipc/namedpipe_windows.go` - Pipe client (tray tarafı)
+3. [x] Request/Response tipleri: get_status, install_from_store, get_store
 
 **Test:** Service çalışırken → Tray'den pipe'a bağlan → status al
 

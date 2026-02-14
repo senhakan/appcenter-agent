@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"appcenter-agent/internal/downloader"
 	"appcenter-agent/internal/heartbeat"
 	"appcenter-agent/internal/installer"
+	"appcenter-agent/internal/ipc"
 	"appcenter-agent/internal/queue"
 	"appcenter-agent/internal/system"
 	"appcenter-agent/pkg/utils"
@@ -40,6 +42,15 @@ func runAgent(ctx context.Context, cfgPath string) error {
 
 	taskQueue := queue.NewTaskQueue(3)
 	pollResults := make(chan heartbeat.PollResult, 8)
+	serviceStarted := time.Now().UTC()
+
+	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted))
+	if pipeErr != nil {
+		logger.Printf("named pipe server not started: %v", pipeErr)
+	} else {
+		defer pipeServer.Close()
+		logger.Printf("named pipe server started: %s", ipc.PipeName)
+	}
 
 	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue)
 	go sender.Start(ctx)
@@ -75,6 +86,50 @@ func runAgent(ctx context.Context, cfgPath string) error {
 					break
 				}
 			}
+		}
+	}
+}
+
+func buildIPCHandler(
+	client *api.Client,
+	cfg *config.Config,
+	taskQueue *queue.TaskQueue,
+	logger *log.Logger,
+	startedAt time.Time,
+) ipc.Handler {
+	return func(req ipc.Request) ipc.Response {
+		switch strings.ToLower(req.Action) {
+		case "get_status":
+			return ipc.Response{
+				Status: "ok",
+				Data: map[string]any{
+					"service":       "running",
+					"started_at":    startedAt.Format(time.RFC3339),
+					"pending_tasks": taskQueue.PendingCount(),
+					"agent_version": cfg.Agent.Version,
+					"agent_uuid":    cfg.Agent.UUID,
+				},
+			}
+		case "get_store":
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			store, err := client.GetStore(ctx, cfg.Agent.UUID, cfg.Agent.SecretKey)
+			if err != nil {
+				logger.Printf("ipc get_store failed: %v", err)
+				return ipc.Response{Status: "error", Message: err.Error()}
+			}
+			return ipc.Response{Status: "ok", Data: store}
+		case "install_from_store":
+			if req.AppID <= 0 {
+				return ipc.Response{Status: "error", Message: "app_id is required"}
+			}
+			return ipc.Response{
+				Status:  "error",
+				Message: "install_from_store requires server-side deployment flow in current version",
+			}
+		default:
+			return ipc.Response{Status: "error", Message: "unknown action"}
 		}
 	}
 }

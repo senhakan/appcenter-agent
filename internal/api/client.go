@@ -99,6 +99,23 @@ type TaskStatusResponse struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+type StoreApp struct {
+	ID               int    `json:"id"`
+	DisplayName      string `json:"display_name"`
+	Version          string `json:"version"`
+	Description      string `json:"description"`
+	IconURL          string `json:"icon_url"`
+	FileSizeMB       int    `json:"file_size_mb"`
+	Category         string `json:"category"`
+	Installed        bool   `json:"installed"`
+	InstalledVersion string `json:"installed_version"`
+	CanUninstall     bool   `json:"can_uninstall"`
+}
+
+type StoreResponse struct {
+	Apps []StoreApp `json:"apps"`
+}
+
 func (c *Client) Register(ctx context.Context, uuid string, version string, info system.HostInfo) (*RegisterResponse, error) {
 	payload := RegisterRequest{
 		UUID:         uuid,
@@ -150,6 +167,19 @@ func (c *Client) ReportTaskStatus(
 	return &out, nil
 }
 
+func (c *Client) GetStore(ctx context.Context, agentUUID, secret string) (*StoreResponse, error) {
+	headers := map[string]string{
+		"X-Agent-UUID":   agentUUID,
+		"X-Agent-Secret": secret,
+	}
+
+	var out StoreResponse
+	if err := c.getJSON(ctx, "/api/v1/agent/store", headers, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) postJSON(ctx context.Context, path string, payload any, headers map[string]string, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -161,6 +191,27 @@ func (c *Client) postJSON(ctx context.Context, path string, payload any, headers
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("request failed: %s", resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (c *Client) getJSON(ctx context.Context, path string, headers map[string]string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

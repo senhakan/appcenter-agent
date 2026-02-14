@@ -32,3 +32,28 @@ func TestReportTaskStatus(t *testing.T) {
 		t.Fatalf("status = %s, want ok", resp.Status)
 	}
 }
+
+func TestGetStore(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/agent/store" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.Header.Get("X-Agent-UUID") != "u1" || r.Header.Get("X-Agent-Secret") != "s1" {
+			t.Fatalf("missing auth headers")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(StoreResponse{
+			Apps: []StoreApp{{ID: 5, DisplayName: "7-Zip", Version: "23.01"}},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(config.ServerConfig{URL: srv.URL})
+	resp, err := c.GetStore(context.Background(), "u1", "s1")
+	if err != nil {
+		t.Fatalf("GetStore error: %v", err)
+	}
+	if len(resp.Apps) != 1 || resp.Apps[0].ID != 5 {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}

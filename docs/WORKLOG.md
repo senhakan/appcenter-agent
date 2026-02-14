@@ -134,6 +134,29 @@ Doğrulama:
 - `go test ./...` başarılı
 - `GOOS=windows GOARCH=amd64 go build ...` başarılı
 
+### Faz 5 (Tamamlandi)
+
+- Named Pipe IPC:
+  - `internal/ipc/namedpipe.go` (tipler)
+  - `internal/ipc/namedpipe_windows.go` (server/client)
+  - `internal/ipc/namedpipe_nonwindows.go` (fallback)
+- Service IPC handler entegrasyonu:
+  - `cmd/service/core.go`
+  - aksiyonlar: `get_status`, `get_store`, `install_from_store`
+- Tray IPC client:
+  - `cmd/tray/main.go` (CLI tabanlı IPC çağrısı)
+- API store client:
+  - `internal/api/client.go` (`GetStore`)
+  - `internal/api/client_test.go`
+- IPC testleri:
+  - `internal/ipc/namedpipe_test.go`
+  - `internal/ipc/namedpipe_nonwindows_test.go`
+
+Doğrulama:
+
+- `go test ./...` başarılı
+- `GOOS=windows GOARCH=amd64 go build ...` başarılı
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

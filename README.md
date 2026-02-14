@@ -8,6 +8,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - Faz 2 tamamlandi (downloader/resume, installer, task status client).
 - Faz 3 tamamlandi (task queue, retry, UTC work-hours, jitter, apps_changed entegrasyonu).
 - Faz 4 tamamlandi (Windows service wrapper + service install/build scriptleri).
+- Faz 5 tamamlandi (Named Pipe IPC: get_status/get_store + tray client).
 - GitHub Actions ile her push'ta test + Windows build calisiyor.
 
 ## Bu Repoda Olanlar
@@ -19,6 +20,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - Heartbeat dongusu: `internal/heartbeat/heartbeat.go`
 - Task queue + retry + work-hours: `internal/queue/taskqueue.go`
 - Windows service wrapper: `cmd/service/main_windows.go`, `cmd/service/service_windows.go`
+- Named Pipe IPC: `internal/ipc/*`
 - Downloader (rate limit + resume): `internal/downloader/downloader.go`
 - Installer (`.msi` / `.exe`): `internal/installer/*`
 - UUID + host info: `internal/system/*`
@@ -71,6 +73,11 @@ Pipeline adimlari:
 - Windows tray build
 - Artifact upload (`appcenter-agent-windows`)
 
+## IPC Notu
+
+- `get_status` ve `get_store` aksiyonlari aktif.
+- `install_from_store` aksiyonu su an server-side deployment akisina yonlendirme gerektirdigi icin bilgilendirici hata doner.
+
 ## Dokumanlar
 
 - Teknik spesifikasyon: `AppCenter_Technical_Specification_v1_1.md`
@@ -80,8 +87,8 @@ Pipeline adimlari:
 
 ## Sonraki Asama
 
-Faz 5:
+Faz 6:
 
-- Named Pipe IPC server/client
-- Tray ile service arasinda request/response protokolu
-- Store aksiyonlarinin service'e devri
+- Gercek systray UI (menu/icon/durum)
+- Store penceresi + install aksiyonlari
+- Tray UX polish
