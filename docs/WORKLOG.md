@@ -63,6 +63,36 @@ Bu dosya agent reposunda yapilan teknik adimlari kronolojik olarak kaydeder.
   - Run: `https://github.com/senhakan/appcenter-agent/actions/runs/22022157039`
   - Sonuc: success
 
+### Remote Windows MSI Test (SSH ile)
+
+- Test host: `10.6.20.172` (`akg03wst005`)
+- Erişim: SSH (MobaSSH), kullanıcı `apptest` (admin)
+- Hazırlık:
+  - `C:\ProgramData\AppCenter\downloads`
+  - `C:\ProgramData\AppCenter\logs`
+  - Test paketi indirildi: `7zip-x64.msi`
+
+Senaryo sonuçları:
+
+- A (silent install):
+  - Komut: `msiexec /i ... /qn /norestart`
+  - Sonuç: `A_EXIT=0`
+  - Doğrulama: `C:\Progra~1\7-Zip\7zFM.exe` bulundu
+- B (eksik MSI dosyası):
+  - Komut: `msiexec /i ...NOT_FOUND.msi /qn /norestart`
+  - Sonuç: `B_EXIT=1619`
+- C (geçersiz MSI paketi):
+  - Komut: `msiexec /i invalid.msi /qn /norestart`
+  - Sonuç: `C_EXIT=1620`
+
+Not:
+
+- `/badarg` senaryosu SSH/non-interactive oturumda MSI UI beklemesine takılabildiği için bu turda otomasyon dışı bırakıldı.
+- Log dosyaları üretildi:
+  - `C:\ProgramData\AppCenter\logs\msi-install.log`
+  - `C:\ProgramData\AppCenter\logs\msi-missing.out`
+  - `C:\ProgramData\AppCenter\logs\msi-invalid.out`
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

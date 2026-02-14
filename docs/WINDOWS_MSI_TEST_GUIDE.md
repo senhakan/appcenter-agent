@@ -90,6 +90,19 @@ $LASTEXITCODE
 - `0` disi kod
 - Hata metni donmeli
 
+Not (SSH/non-interactive):
+
+- Bu senaryo bazen MSI UI beklemesine takilabilir.
+- Otomasyon icin alternatif olarak gecersiz MSI paketi testi kullanin:
+
+```powershell
+Set-Content -Path "C:\ProgramData\AppCenter\downloads\invalid.msi" -Value "not-a-real-msi"
+msiexec /i "C:\ProgramData\AppCenter\downloads\invalid.msi" /qn /norestart
+$LASTEXITCODE
+```
+
+- Beklenen: `1620` (invalid package)
+
 ## 5. Agent Koduyla Entegre Dogrulama
 
 Bu adim installer fonksiyonunun gercek calismasini dolayli dogrular.
