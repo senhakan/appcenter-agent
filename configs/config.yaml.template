@@ -1,0 +1,23 @@
+server:
+  url: "http://127.0.0.1:8000"
+  verify_ssl: false
+
+agent:
+  version: "0.1.0"
+  uuid: ""
+  secret_key: ""
+
+heartbeat:
+  interval_sec: 60
+
+download:
+  temp_dir: "C:\\ProgramData\\AppCenter\\downloads"
+  bandwidth_limit_kbps: 1024
+
+work_hours:
+  start_utc: "09:00"
+  end_utc: "18:00"
+
+logging:
+  level: "info"
+  file: "C:\\ProgramData\\AppCenter\\logs\\agent.log"

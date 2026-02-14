@@ -1,0 +1,142 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"appcenter-agent/internal/config"
+	"appcenter-agent/internal/system"
+)
+
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+func NewClient(cfg config.ServerConfig) *Client {
+	return &Client{
+		baseURL: strings.TrimRight(cfg.URL, "/"),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+type RegisterRequest struct {
+	UUID         string `json:"uuid"`
+	Hostname     string `json:"hostname"`
+	OSVersion    string `json:"os_version"`
+	AgentVersion string `json:"agent_version"`
+	CPUModel     string `json:"cpu_model"`
+	RAMGB        int    `json:"ram_gb"`
+	DiskFreeGB   int    `json:"disk_free_gb"`
+}
+
+type RegisterResponse struct {
+	Status    string            `json:"status"`
+	Message   string            `json:"message"`
+	SecretKey string            `json:"secret_key"`
+	Config    map[string]any    `json:"config"`
+}
+
+type InstalledApp struct {
+	AppID   int    `json:"app_id"`
+	Version string `json:"version"`
+}
+
+type HeartbeatRequest struct {
+	Hostname      string         `json:"hostname"`
+	IPAddress     string         `json:"ip_address"`
+	OSUser        string         `json:"os_user"`
+	AgentVersion  string         `json:"agent_version"`
+	DiskFreeGB    int            `json:"disk_free_gb"`
+	CPUUsage      float64        `json:"cpu_usage"`
+	RAMUsage      float64        `json:"ram_usage"`
+	CurrentStatus string         `json:"current_status"`
+	AppsChanged   bool           `json:"apps_changed"`
+	InstalledApps []InstalledApp `json:"installed_apps"`
+}
+
+type Command struct {
+	TaskID        int    `json:"task_id"`
+	Action        string `json:"action"`
+	AppID         int    `json:"app_id"`
+	AppName       string `json:"app_name"`
+	AppVersion    string `json:"app_version"`
+	DownloadURL   string `json:"download_url"`
+	FileHash      string `json:"file_hash"`
+	FileSizeBytes int64  `json:"file_size_bytes"`
+	InstallArgs   string `json:"install_args"`
+	ForceUpdate   bool   `json:"force_update"`
+	Priority      int    `json:"priority"`
+}
+
+type HeartbeatResponse struct {
+	Status     string         `json:"status"`
+	ServerTime string         `json:"server_time"`
+	Config     map[string]any `json:"config"`
+	Commands   []Command      `json:"commands"`
+}
+
+func (c *Client) Register(ctx context.Context, uuid string, version string, info system.HostInfo) (*RegisterResponse, error) {
+	payload := RegisterRequest{
+		UUID:         uuid,
+		Hostname:     info.Hostname,
+		OSVersion:    info.OSVersion,
+		AgentVersion: version,
+		CPUModel:     info.CPUModel,
+		RAMGB:        info.RAMGB,
+		DiskFreeGB:   info.DiskFreeGB,
+	}
+
+	var out RegisterResponse
+	if err := c.postJSON(ctx, "/api/v1/agent/register", payload, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) Heartbeat(ctx context.Context, agentUUID, secret string, reqBody HeartbeatRequest) (*HeartbeatResponse, error) {
+	headers := map[string]string{
+		"X-Agent-UUID":   agentUUID,
+		"X-Agent-Secret": secret,
+	}
+
+	var out HeartbeatResponse
+	if err := c.postJSON(ctx, "/api/v1/agent/heartbeat", reqBody, headers, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) postJSON(ctx context.Context, path string, payload any, headers map[string]string, out any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("request failed: %s", resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
