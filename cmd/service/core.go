@@ -292,6 +292,9 @@ func resolveWritableConfigPath() string {
 	if p := os.Getenv("APPCENTER_CONFIG"); p != "" {
 		return p
 	}
+	if runtime.GOOS == "windows" {
+		return `C:\ProgramData\AppCenter\config.yaml`
+	}
 	return "config.yaml"
 }
 
