@@ -65,8 +65,8 @@ Bu dosya agent reposunda yapilan teknik adimlari kronolojik olarak kaydeder.
 
 ### Remote Windows MSI Test (SSH ile)
 
-- Test host: `10.6.20.172` (`akg03wst005`)
-- Erişim: SSH (MobaSSH), kullanıcı `apptest` (admin)
+- Test host: Windows test VM (IP/kullanici bilgileri repo disi tutulur)
+- Erişim: Windows OpenSSH Server (PowerShell default shell, admin token gerekli)
 - Hazırlık:
   - `C:\ProgramData\AppCenter\downloads`
   - `C:\ProgramData\AppCenter\logs`
@@ -92,6 +92,14 @@ Not:
   - `C:\ProgramData\AppCenter\logs\msi-install.log`
   - `C:\ProgramData\AppCenter\logs\msi-missing.out`
   - `C:\ProgramData\AppCenter\logs\msi-invalid.out`
+
+### Uctan-Uca Deployment Testi (Server -> Agent)
+
+- Server'in Windows makinelerden erisilebilir olmasi icin test ortaminda `--host 0.0.0.0 --port 8000` ile dinleme acildi.
+- Gercek deployment akisi test edildi:
+  - Ilk denemede MSI `1641` (reboot initiated) kodu "failed" sayildi.
+  - Fix: `3010` ve `1641` agent tarafinda basari olarak kabul edildi.
+- Not: `exit_code=0` JSON omitempty nedeniyle server DB'ye `NULL` dusuyordu; exit_code alanini pointer ile gondererek `0` kaydinin korunmasi saglandi.
 
 ### Faz 3 (Tamamlandi)
 

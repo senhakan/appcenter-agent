@@ -80,7 +80,7 @@ Pipeline adimlari:
 ## IPC Notu
 
 - `get_status` ve `get_store` aksiyonlari aktif.
-- `install_from_store` aksiyonu su an server-side deployment akisina yonlendirme gerektirdigi icin bilgilendirici hata doner.
+- `install_from_store` aksiyonu bu surumde bilerek kapali (server-side deployment akisina baglanacak).
 
 ## Self-Update Notu
 

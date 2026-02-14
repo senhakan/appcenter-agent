@@ -87,7 +87,8 @@ type TaskStatusRequest struct {
 	Status              string `json:"status"`
 	Progress            int    `json:"progress"`
 	Message             string `json:"message"`
-	ExitCode            int    `json:"exit_code,omitempty"`
+	// Use pointer so `0` is not dropped by `omitempty` when we want to persist success exit codes.
+	ExitCode            *int   `json:"exit_code,omitempty"`
 	InstalledVersion    string `json:"installed_version,omitempty"`
 	DownloadDurationSec int    `json:"download_duration_sec,omitempty"`
 	InstallDurationSec  int    `json:"install_duration_sec,omitempty"`

@@ -8,6 +8,9 @@ Dogrulanan konular:
 
 - `internal/installer/msi_windows.go` uzerinden `msiexec` cagrisinin calismasi
 - Basarili kurulumda `exit_code=0`
+- Reboot-required exit code'larin agent tarafinda basari sayilmasi:
+  - `3010` (reboot required)
+  - `1641` (reboot initiated)
 - Hatali kurulumda dogru hata/exit code donusu
 - Silent argumanlarin uygulandiginin dogrulanmasi
 

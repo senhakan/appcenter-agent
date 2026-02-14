@@ -128,11 +128,12 @@ func (q *TaskQueue) ProcessOne(
 	result, err := execute(ctx, task)
 	if err != nil {
 		q.handleFailure(task.TaskID)
+		exitCode := result.ExitCode
 		_ = report(ctx, task.TaskID, api.TaskStatusRequest{
 			Status:   "failed",
 			Progress: 0,
 			Message:  err.Error(),
-			ExitCode: result.ExitCode,
+			ExitCode: &exitCode,
 			Error:    err.Error(),
 		})
 		return true
@@ -142,11 +143,12 @@ func (q *TaskQueue) ProcessOne(
 		result.Message = "Installation completed successfully"
 	}
 
+	exitCode := result.ExitCode
 	_ = report(ctx, task.TaskID, api.TaskStatusRequest{
 		Status:              "success",
 		Progress:            100,
 		Message:             result.Message,
-		ExitCode:            result.ExitCode,
+		ExitCode:            &exitCode,
 		InstalledVersion:    result.InstalledVersion,
 		DownloadDurationSec: result.DownloadDurationSec,
 		InstallDurationSec:  result.InstallDurationSec,

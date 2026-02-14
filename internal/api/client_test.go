@@ -18,13 +18,27 @@ func TestReportTaskStatus(t *testing.T) {
 		if r.Header.Get("X-Agent-UUID") != "u1" || r.Header.Get("X-Agent-Secret") != "s1" {
 			t.Fatalf("missing auth headers")
 		}
+
+		// Ensure we can send explicit `exit_code=0` without it being dropped.
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if _, ok := payload["exit_code"]; !ok {
+			t.Fatalf("exit_code missing in request payload: %#v", payload)
+		}
+		if got, ok := payload["exit_code"].(float64); !ok || int(got) != 0 {
+			t.Fatalf("exit_code=%v, want 0", payload["exit_code"])
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(TaskStatusResponse{Status: "ok"})
 	}))
 	defer srv.Close()
 
+	zero := 0
 	c := NewClient(config.ServerConfig{URL: srv.URL})
-	resp, err := c.ReportTaskStatus(context.Background(), "u1", "s1", 12, TaskStatusRequest{Status: "success", Progress: 100, Message: "ok"})
+	resp, err := c.ReportTaskStatus(context.Background(), "u1", "s1", 12, TaskStatusRequest{Status: "success", Progress: 100, Message: "ok", ExitCode: &zero})
 	if err != nil {
 		t.Fatalf("ReportTaskStatus error: %v", err)
 	}
