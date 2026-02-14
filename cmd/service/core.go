@@ -250,7 +250,7 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 	}
 
 	return queue.ExecutionResult{
-		ExitCode:            0,
+		ExitCode:            exitCode,
 		InstalledVersion:    cmd.AppVersion,
 		DownloadDurationSec: downloadDuration,
 		InstallDurationSec:  installDuration,

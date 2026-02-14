@@ -22,7 +22,14 @@ func installMSI(ctx context.Context, filePath, args string) (int, error) {
 	}
 
 	if exitErr, ok := err.(*exec.ExitError); ok {
-		return exitErr.ExitCode(), fmt.Errorf("msi install failed: %s", strings.TrimSpace(string(out)))
+		code := exitErr.ExitCode()
+		// Common "success but reboot required" codes:
+		// 3010 = ERROR_SUCCESS_REBOOT_REQUIRED
+		// 1641 = ERROR_SUCCESS_REBOOT_INITIATED
+		if code == 3010 || code == 1641 {
+			return code, nil
+		}
+		return code, fmt.Errorf("msi install failed: %s", strings.TrimSpace(string(out)))
 	}
 	return -1, err
 }
