@@ -96,7 +96,8 @@ func applyIfPending(
 		return errors.New("service exe path is empty")
 	}
 
-	cmd := exec.CommandContext(ctx, helper,
+	// Do NOT bind helper lifecycle to ctx; we intentionally exit the service after spawning it.
+	cmd := exec.Command(helper,
 		"--service-name", cfg.Update.ServiceName,
 		"--target-exe", serviceExePath,
 		"--new-exe", meta.FilePath,
@@ -116,4 +117,3 @@ func applyIfPending(
 	logger.Printf("self-update apply triggered: helper=%s target=%s new=%s version=%s", helper, filepath.Base(serviceExePath), filepath.Base(meta.FilePath), meta.Version)
 	return ErrUpdateRestart
 }
-
