@@ -38,10 +38,10 @@ type RegisterRequest struct {
 }
 
 type RegisterResponse struct {
-	Status    string            `json:"status"`
-	Message   string            `json:"message"`
-	SecretKey string            `json:"secret_key"`
-	Config    map[string]any    `json:"config"`
+	Status    string         `json:"status"`
+	Message   string         `json:"message"`
+	SecretKey string         `json:"secret_key"`
+	Config    map[string]any `json:"config"`
 }
 
 type InstalledApp struct {
@@ -83,6 +83,22 @@ type HeartbeatResponse struct {
 	Commands   []Command      `json:"commands"`
 }
 
+type TaskStatusRequest struct {
+	Status              string `json:"status"`
+	Progress            int    `json:"progress"`
+	Message             string `json:"message"`
+	ExitCode            int    `json:"exit_code,omitempty"`
+	InstalledVersion    string `json:"installed_version,omitempty"`
+	DownloadDurationSec int    `json:"download_duration_sec,omitempty"`
+	InstallDurationSec  int    `json:"install_duration_sec,omitempty"`
+	Error               string `json:"error,omitempty"`
+}
+
+type TaskStatusResponse struct {
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
 func (c *Client) Register(ctx context.Context, uuid string, version string, info system.HostInfo) (*RegisterResponse, error) {
 	payload := RegisterRequest{
 		UUID:         uuid,
@@ -109,6 +125,26 @@ func (c *Client) Heartbeat(ctx context.Context, agentUUID, secret string, reqBod
 
 	var out HeartbeatResponse
 	if err := c.postJSON(ctx, "/api/v1/agent/heartbeat", reqBody, headers, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) ReportTaskStatus(
+	ctx context.Context,
+	agentUUID,
+	secret string,
+	taskID int,
+	reqBody TaskStatusRequest,
+) (*TaskStatusResponse, error) {
+	headers := map[string]string{
+		"X-Agent-UUID":   agentUUID,
+		"X-Agent-Secret": secret,
+	}
+
+	var out TaskStatusResponse
+	path := fmt.Sprintf("/api/v1/agent/task/%d/status", taskID)
+	if err := c.postJSON(ctx, path, reqBody, headers, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
