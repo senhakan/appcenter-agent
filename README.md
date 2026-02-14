@@ -116,10 +116,13 @@ Pipeline adimlari:
 
 - Teknik spesifikasyon: `AppCenter_Technical_Specification_v1_1.md`
 - Agent gelistirme rehberi: `CLAUDE.md`
+- Repo calisma talimatlari: `AGENTS.md`
 - Islem gecmisi: `docs/WORKLOG.md`
 - MSI test adimlari: `docs/WINDOWS_MSI_TEST_GUIDE.md`
+- Buradan devam notlari: `docs/CONTINUATION.md`
 
 ## Sonraki Asama
 
 - `install_from_store` aksiyonunu server-side deployment akisiyla tamamlamak
-- Staged update icin kontrollu apply/restart adimi eklemek
+- MSI artifact'ini GitHub Actions'tan alip temiz bir Windows VM uzerinde kurulum/upgrade/uninstall testini tamamlamak
+- Staged update apply icin hardening: failure rollback senaryolari + telemetry/log standardizasyonu

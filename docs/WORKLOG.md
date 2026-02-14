@@ -238,6 +238,27 @@ Doğrulama:
 
 - Self-update staging:
   - `internal/updater/updater.go`
+
+### MSI Installer (WiX) (Tamamlandi)
+
+- Hedef: service + tray autostart + ProgramData config/yol kurallari tek bir MSI ile dagitilabilsin.
+- WiX tanimi:
+  - `installer/wix/AppCenterAgent.wxs`
+  - Kurulum yollari:
+    - `C:\Program Files\AppCenter\*`
+    - `C:\ProgramData\AppCenter\config.yaml` (NeverOverwrite)
+  - Service: `AppCenterAgent` (Automatic, install + start)
+  - Tray autostart (all users): HKLM Run `AppCenterTray`
+- MSI build script:
+  - `build/build-msi.ps1` (WiX v3 `candle.exe` + `light.exe`)
+- CI job:
+  - `.github/workflows/build.yml` -> `build-windows-msi`
+  - Artifact: `appcenter-agent-msi`
+
+Not:
+
+- MSI artifact'ini bu ortamdan otomatik cekmek icin bir yetkilendirme/publish mekanizmasi gerekir (PAT veya Release).
+  - Bu repo dokumanlari bilerek herhangi bir IP/kullanici/sifre bilgisi tutmaz.
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:
