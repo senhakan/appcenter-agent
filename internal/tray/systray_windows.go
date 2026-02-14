@@ -20,6 +20,12 @@ func NewApp() *App {
 }
 
 func Run() error {
+	release, err := ensureSingleInstance()
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	app := NewApp()
 	systray.Run(app.onReady, app.onExit)
 	return nil

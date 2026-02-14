@@ -140,6 +140,14 @@ Not:
   - `appcenter-tray-cli.exe` argumansiz calistirilinca systray mode acilir.
   - Gerekirse `schtasks /IT` ile interaktif session'a start edilebilir.
 
+### Tray Autostart (All Users)
+
+- Tray uygulamasi service degildir; kullanici oturumunda baslatilmalidir.
+- Installer script `HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` altina `AppCenterTray` kaydi ekler:
+  - Bu sayede her kullanici logon oldugunda tray otomatik calisir.
+- Duplicate instance engelleme:
+  - Windows'ta `Local\\AppCenterTray` mutex ile ayni session icinde ikinci instance engellenir.
+
 ### Faz 3 (Tamamlandi)
 
 - Queue/retry/work-hours/jitter:

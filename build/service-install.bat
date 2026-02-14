@@ -41,5 +41,9 @@ if %errorLevel% neq 0 (
 sc description AppCenterAgent "AppCenter Agent Service"
 sc start AppCenterAgent
 
+REM Start tray for every user on logon.
+REM Note: the tray is optional UI; the service keeps working without it.
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v AppCenterTray /t REG_SZ /d "\"%TARGET_BIN%\appcenter-tray.exe\"" /f >nul
+
 echo Service installation completed.
 exit /b 0
