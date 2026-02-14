@@ -18,6 +18,7 @@ import (
 	"appcenter-agent/internal/ipc"
 	"appcenter-agent/internal/queue"
 	"appcenter-agent/internal/system"
+	"appcenter-agent/internal/updater"
 	"appcenter-agent/pkg/utils"
 )
 
@@ -29,11 +30,15 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	logger, logFile, err := utils.NewLogger(logPathOrFallback(cfg.Logging.File))
+	logger, logCloser, err := utils.NewLogger(
+		logPathOrFallback(cfg.Logging.File),
+		cfg.Logging.MaxSizeMB,
+		cfg.Logging.MaxBackups,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
-	defer logFile.Close()
+	defer logCloser.Close()
 
 	client := api.NewClient(cfg.Server)
 	if err := bootstrapAgent(client, cfg, logger); err != nil {
@@ -56,11 +61,21 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	go sender.Start(ctx)
 
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
-		_, err := client.ReportTaskStatus(ctx, cfg.Agent.UUID, cfg.Agent.SecretKey, taskID, req)
-		if err != nil {
-			logger.Printf("task status report failed for task=%d: %v", taskID, err)
+		var lastErr error
+		for attempt := 1; attempt <= 3; attempt++ {
+			_, err := client.ReportTaskStatus(ctx, cfg.Agent.UUID, cfg.Agent.SecretKey, taskID, req)
+			if err == nil {
+				return nil
+			}
+			lastErr = err
+			logger.Printf("task status report failed for task=%d attempt=%d: %v", taskID, attempt, err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
 		}
-		return err
+		return lastErr
 	}
 
 	executeFn := func(ctx context.Context, cmd api.Command) (queue.ExecutionResult, error) {
@@ -77,8 +92,14 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			logger.Println("service loop stopped")
 			return nil
 		case result := <-pollResults:
+			if err := updater.StageIfNeeded(ctx, *cfg, result.Config, logger); err != nil {
+				logger.Printf("self-update stage failed: %v", err)
+			}
+
 			taskQueue.AddCommands(result.Commands)
-			logger.Printf("received %d command(s), pending=%d", len(result.Commands), taskQueue.PendingCount())
+			if len(result.Commands) > 0 {
+				logger.Printf("received %d command(s), pending=%d", len(result.Commands), taskQueue.PendingCount())
+			}
 
 			for {
 				processed := taskQueue.ProcessOne(ctx, result.ServerTime, *cfg, executeFn, reportFn)

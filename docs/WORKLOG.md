@@ -178,6 +178,31 @@ Doğrulama:
 - `go test ./...` başarılı
 - `GOOS=windows GOARCH=amd64 go build ...` başarılı
 
+### Faz 7 (Tamamlandi)
+
+- Self-update staging:
+  - `internal/updater/updater.go`
+  - heartbeat `config` alanindan update bilgisi alinir
+  - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
+- Log rotation:
+  - `pkg/utils/logger.go`
+  - `logging.max_size_mb`, `logging.max_backups` ile boyut bazli rotate
+- Error handling polish:
+  - `cmd/service/core.go`
+  - task status report icin retry (3 deneme, artan bekleme)
+  - updater hatalari main loop'u durdurmaz, loglanir
+- Config update:
+  - `internal/config/config.go`
+  - `configs/config.yaml.template`
+  - yeni alanlar: `logging.max_size_mb`, `logging.max_backups`
+- Test:
+  - `internal/updater/updater_test.go`
+
+Doğrulama:
+
+- `go test ./...` başarılı
+- `GOOS=windows GOARCH=amd64 go build ...` başarılı
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

@@ -17,6 +17,7 @@ type InstalledAppsProvider interface {
 
 type PollResult struct {
 	ServerTime time.Time
+	Config     map[string]any
 	Commands   []api.Command
 }
 
@@ -101,9 +102,13 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	if parsed, err := time.Parse(time.RFC3339, resp.ServerTime); err == nil {
 		serverTime = parsed.UTC()
 	}
-	if s.resultsCh != nil && len(resp.Commands) > 0 {
+	if s.resultsCh != nil {
 		select {
-		case s.resultsCh <- PollResult{ServerTime: serverTime, Commands: resp.Commands}:
+		case s.resultsCh <- PollResult{
+			ServerTime: serverTime,
+			Config:     resp.Config,
+			Commands:   resp.Commands,
+		}:
 		default:
 			s.logger.Printf("heartbeat result queue full, dropping %d command(s)", len(resp.Commands))
 		}

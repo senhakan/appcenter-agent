@@ -48,8 +48,10 @@ type WorkHoursConfig struct {
 }
 
 type LoggingConfig struct {
-	Level string `yaml:"level"`
-	File  string `yaml:"file"`
+	Level      string `yaml:"level"`
+	File       string `yaml:"file"`
+	MaxSizeMB  int    `yaml:"max_size_mb"`
+	MaxBackups int    `yaml:"max_backups"`
 }
 
 func Load(path string) (*Config, error) {
@@ -91,6 +93,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Install.TimeoutSec <= 0 {
 		return errors.New("install.timeout_sec must be > 0")
+	}
+	if c.Logging.MaxSizeMB <= 0 {
+		return errors.New("logging.max_size_mb must be > 0")
+	}
+	if c.Logging.MaxBackups <= 0 {
+		return errors.New("logging.max_backups must be > 0")
 	}
 	if c.Agent.Version == "" {
 		return errors.New("agent.version is required")

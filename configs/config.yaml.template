@@ -25,3 +25,5 @@ work_hours:
 logging:
   level: "info"
   file: "C:\\ProgramData\\AppCenter\\logs\\agent.log"
+  max_size_mb: 10
+  max_backups: 5

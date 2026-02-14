@@ -39,6 +39,10 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `internal/tray/systray_windows.go`, `internal/tray/systray_nonwindows.go`, `internal/tray/tray.go`
   - `cmd/tray/main.go` argümansız modda systray UI, argümanlı modda IPC CLI
   - Systray menüsü: status refresh, store refresh, install_from_store tetikleme
+- Faz 7 tamamlandı:
+  - `internal/updater/updater.go` (heartbeat config ile self-update paketi staging)
+  - `pkg/utils/logger.go` (boyut bazlı log rotation)
+  - `cmd/service/core.go` (task status report retry + updater entegrasyonu)
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -197,9 +201,9 @@ agent/
 **Test:** Tray icon görünüyor mu? Store açılıyor mu? Install isteği service'e ulaşıyor mu?
 
 ### Faz 7: Self-Update & Polish
-1. Self-update mechanism (download → rename → restart)
-2. Error handling iyileştirmesi
-3. Log rotation
+1. [x] Self-update staging (download + hash verify + metadata)
+2. [x] Error handling iyileştirmesi (task status report retry)
+3. [x] Log rotation (max_size_mb/max_backups)
 
 ---
 
