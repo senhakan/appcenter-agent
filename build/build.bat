@@ -20,6 +20,10 @@ REM Tray CLI binary (console subsystem for stdout/stderr)
 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o build\appcenter-tray-cli.exe .\cmd\tray
 if errorlevel 1 goto :fail
 
+REM Update helper binary
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o build\appcenter-update-helper.exe .\cmd\update-helper
+if errorlevel 1 goto :fail
+
 copy /Y configs\config.yaml.template build\config.yaml >nul
 
 echo Build completed.

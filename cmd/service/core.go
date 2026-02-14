@@ -46,6 +46,8 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		return fmt.Errorf("bootstrap failed: %w", err)
 	}
 
+	serviceExe, _ := os.Executable()
+
 	taskQueue := queue.NewTaskQueue(3)
 	pollResults := make(chan heartbeat.PollResult, 8)
 	serviceStarted := time.Now().UTC()
@@ -93,6 +95,14 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			logger.Println("service loop stopped")
 			return nil
 		case result := <-pollResults:
+			if taskQueue.PendingCount() == 0 {
+				if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {
+					if errors.Is(err, updater.ErrUpdateRestart) {
+						return err
+					}
+					logger.Printf("self-update apply failed: %v", err)
+				}
+			}
 			if err := updater.StageIfNeeded(ctx, *cfg, result.Config, logger); err != nil {
 				logger.Printf("self-update stage failed: %v", err)
 			}

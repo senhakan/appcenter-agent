@@ -4,11 +4,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"appcenter-agent/internal/updater"
 	"golang.org/x/sys/windows/svc"
 )
 
@@ -30,6 +32,9 @@ func main() {
 	defer cancel()
 
 	if err := runAgent(ctx, resolveConfigPath()); err != nil {
+		if errors.Is(err, updater.ErrUpdateRestart) {
+			os.Exit(0)
+		}
 		fmt.Fprintf(os.Stderr, "service error: %v\n", err)
 		os.Exit(1)
 	}

@@ -4,8 +4,11 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"golang.org/x/sys/windows/svc"
+
+	"appcenter-agent/internal/updater"
 )
 
 type appCenterService struct{}
@@ -43,7 +46,7 @@ func (m *appCenterService) Execute(_ []string, req <-chan svc.ChangeRequest, sta
 				return false, 0
 			}
 		case <-done:
-			if runErr != nil {
+			if runErr != nil && !errors.Is(runErr, updater.ErrUpdateRestart) {
 				return false, 1
 			}
 			return false, 0

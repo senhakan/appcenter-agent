@@ -43,6 +43,7 @@ go test ./...
 GOOS=windows GOARCH=amd64 go build -o build/appcenter-service.exe ./cmd/service
 GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
 GOOS=windows GOARCH=amd64 go build -o build/appcenter-tray-cli.exe ./cmd/tray
+GOOS=windows GOARCH=amd64 go build -o build/appcenter-update-helper.exe ./cmd/update-helper
 
 # windows'ta yardimci scriptler
 build\\build.bat
@@ -89,7 +90,8 @@ Pipeline adimlari:
 - Dogrulanan paket `download.temp_dir` altinda staged edilir:
   - `agent-update-<version>.exe`
   - `pending_update.json`
-- Bu surumde update apply islemi otomatik restart/replace yapmaz; guvenli staging yapar.
+- Apply modu (opsiyonel):
+  - `update.auto_apply=true` ise service, `pending_update.json` buldugunda `appcenter-update-helper.exe` ile kendini replace edip restart eder.
 
 ## Tray Kullanimi
 

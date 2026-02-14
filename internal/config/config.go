@@ -13,6 +13,7 @@ type Config struct {
 	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
 	Download  DownloadConfig  `yaml:"download"`
 	Install   InstallConfig   `yaml:"install"`
+	Update    UpdateConfig    `yaml:"update"`
 	WorkHours WorkHoursConfig `yaml:"work_hours"`
 	Logging   LoggingConfig   `yaml:"logging"`
 }
@@ -42,6 +43,15 @@ type InstallConfig struct {
 	EnableAutoCleanup bool `yaml:"enable_auto_cleanup"`
 }
 
+type UpdateConfig struct {
+	// AutoApply enables applying staged updates (pending_update.json) on the next idle loop.
+	AutoApply bool `yaml:"auto_apply"`
+	// ServiceName is only used by Windows update helper to restart the service.
+	ServiceName string `yaml:"service_name"`
+	// HelperPath is the path to the update helper executable on Windows.
+	HelperPath string `yaml:"helper_path"`
+}
+
 type WorkHoursConfig struct {
 	StartUTC string `yaml:"start_utc"`
 	EndUTC   string `yaml:"end_utc"`
@@ -64,6 +74,7 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(b, &cfg); err != nil {
 		return nil, err
 	}
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -104,4 +115,10 @@ func (c *Config) Validate() error {
 		return errors.New("agent.version is required")
 	}
 	return nil
+}
+
+func (c *Config) ApplyDefaults() {
+	if c.Update.ServiceName == "" {
+		c.Update.ServiceName = "AppCenterAgent"
+	}
 }

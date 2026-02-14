@@ -120,6 +120,16 @@ Not:
   - `C:\\Program Files\\7-Zip\\7zFM.exe` dosya versiyonu: `26.00`
   - Windows Installer event log: `MsiInstaller` event'lerinde `7-Zip 26.00 (x64 edition) -- Installation completed successfully` kaydi goruldu.
 
+### Staged Update Apply (Windows)
+
+- `update.auto_apply=true` oldugunda service, staged edilen `pending_update.json` dosyasini gorunce update apply'i tetikler.
+- Apply islemi service icinden degil, ayrik bir helper ile yapilir:
+  - `appcenter-update-helper.exe` service'i durdurur
+  - `C:\\Program Files\\AppCenter\\appcenter-service.exe` dosyasini backup alir
+  - staged exe'yi hedef exe ile degistirir
+  - config'te `agent.version` degerini hedef versiyona gunceller
+  - service'i tekrar baslatir
+
 ### Faz 3 (Tamamlandi)
 
 - Queue/retry/work-hours/jitter:
