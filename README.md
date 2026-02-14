@@ -42,6 +42,7 @@ go test ./...
 # windows build (linux/macos ortaminda cross-compile)
 GOOS=windows GOARCH=amd64 go build -o build/appcenter-service.exe ./cmd/service
 GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
+GOOS=windows GOARCH=amd64 go build -o build/appcenter-tray-cli.exe ./cmd/tray
 
 # windows'ta yardimci scriptler
 build\\build.bat
@@ -94,10 +95,10 @@ Pipeline adimlari:
 
 - Windows GUI mode:
   - `appcenter-tray.exe` (argumansiz) systray acilir.
-- CLI mode (debug):
-  - `appcenter-tray.exe get_status`
-  - `appcenter-tray.exe get_store`
-  - `appcenter-tray.exe install_from_store 12`
+- CLI mode (debug, console cikti icin):
+  - `appcenter-tray-cli.exe get_status`
+  - `appcenter-tray-cli.exe get_store`
+  - `appcenter-tray-cli.exe install_from_store 12`
 
 ## Dokumanlar
 

@@ -29,6 +29,9 @@ jobs:
       - name: Build tray (windowsgui)
         run: GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
 
+      - name: Build tray CLI (console)
+        run: GOOS=windows GOARCH=amd64 go build -o build/appcenter-tray-cli.exe ./cmd/tray
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

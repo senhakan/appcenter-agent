@@ -101,6 +101,11 @@ Not:
   - Fix: `3010` ve `1641` agent tarafinda basari olarak kabul edildi.
 - Not: `exit_code=0` JSON omitempty nedeniyle server DB'ye `NULL` dusuyordu; exit_code alanini pointer ile gondererek `0` kaydinin korunmasi saglandi.
 
+### Tray CLI Cikti Sorunu (Windows)
+
+- `appcenter-tray.exe` `-H=windowsgui` ile derlendiginden PowerShell'de `get_status/get_store` komutlari stdout'a yazsa bile gorunmez.
+- Cozum: ayni kod tabanindan ayrica console subsystem ile `appcenter-tray-cli.exe` artifact'i uretilir; CLI testleri bunda calistirilir.
+
 ### Faz 3 (Tamamlandi)
 
 - Queue/retry/work-hours/jitter:

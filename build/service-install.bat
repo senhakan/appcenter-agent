@@ -17,6 +17,9 @@ mkdir "%TARGET_DATA%\logs" 2>nul
 
 copy /Y "%SRC%appcenter-service.exe" "%TARGET_BIN%\appcenter-service.exe" >nul
 copy /Y "%SRC%appcenter-tray.exe" "%TARGET_BIN%\appcenter-tray.exe" >nul
+if exist "%SRC%appcenter-tray-cli.exe" (
+    copy /Y "%SRC%appcenter-tray-cli.exe" "%TARGET_BIN%\appcenter-tray-cli.exe" >nul
+)
 copy /Y "%SRC%config.yaml" "%TARGET_DATA%\config.yaml" >nul
 
 sc query AppCenterAgent >nul 2>&1
