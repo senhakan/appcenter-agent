@@ -131,6 +131,13 @@ Not:
   - service'i tekrar baslatir
 - Not: helper process'inin service kapaninca olmeyecek sekilde detached baslatilmasi gerekir (context'e baglanmaz).
 
+### System Tray Icon Testi (Windows)
+
+- Tray icon sadece kullanici oturumunda gorunur; Windows service (Session 0) tray icon gosteremez.
+- Test icin tray binary interaktif session'da calistirildi (RDP session):
+  - `appcenter-tray-cli.exe` argumansiz calistirilinca systray mode acilir.
+  - Gerekirse `schtasks /IT` ile interaktif session'a start edilebilir.
+
 ### Faz 3 (Tamamlandi)
 
 - Queue/retry/work-hours/jitter:
