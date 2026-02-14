@@ -129,6 +129,7 @@ Not:
   - staged exe'yi hedef exe ile degistirir
   - config'te `agent.version` degerini hedef versiyona gunceller
   - service'i tekrar baslatir
+- Not: helper process'inin service kapaninca olmeyecek sekilde detached baslatilmasi gerekir (context'e baglanmaz).
 
 ### Faz 3 (Tamamlandi)
 
