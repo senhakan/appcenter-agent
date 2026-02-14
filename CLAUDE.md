@@ -9,6 +9,26 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
 **Hedef Platform:** Windows 10/11, Server 2016+  
 **Referans Doküman:** `../AppCenter_Technical_Specification_v1_1.md`
 
+### UYGULANAN SON DURUM (2026-02-14)
+
+- Faz 1 tamamlandı:
+  - `go.mod`, `configs/config.yaml.template`
+  - `internal/config/config.go`
+  - `internal/system/info.go`, `internal/system/uuid_windows.go`, `internal/system/uuid_nonwindows.go`
+  - `internal/api/client.go` (register + heartbeat)
+  - `internal/heartbeat/heartbeat.go`
+  - `cmd/service/main.go`
+- Faz 2 tamamlandı:
+  - `internal/downloader/downloader.go` (bandwidth limit + resume)
+  - `internal/installer/installer.go`, `internal/installer/msi_windows.go`, `internal/installer/msi_nonwindows.go`, `internal/installer/exe.go`
+  - `internal/api/client.go` (`ReportTaskStatus`)
+- Test ve derleme:
+  - `go test ./...` başarılı
+  - `GOOS=windows GOARCH=amd64` cross-build başarılı
+  - GitHub Actions build:
+    - `ab4c962` -> success
+    - `61ebcb8` -> success
+
 ---
 
 ## DİZİN YAPISI
@@ -29,19 +49,19 @@ agent/
 │   │   └── heartbeat.go            # Periyodik heartbeat gönderici
 │   ├── installer/
 │   │   ├── installer.go            # Install orchestrator
-│   │   ├── msi.go                  # msiexec wrapper
+│   │   ├── msi_windows.go          # msiexec wrapper (Windows)
+│   │   ├── msi_nonwindows.go       # non-Windows fallback
 │   │   └── exe.go                  # EXE wrapper
 │   ├── downloader/
 │   │   └── downloader.go           # Bandwidth-limited downloader + resume
 │   ├── system/
 │   │   ├── info.go                 # Hostname, IP, OS, CPU, RAM bilgisi
-│   │   ├── uuid.go                 # Registry'den UUID oku/yaz
-│   │   └── disk.go                 # Disk boş alan kontrolü
+│   │   ├── uuid_windows.go         # Registry'den UUID oku/yaz
+│   │   └── uuid_nonwindows.go      # non-Windows fallback UUID
 │   ├── queue/
 │   │   └── taskqueue.go            # Task queue + retry (exponential backoff)
 │   ├── tray/
-│   │   ├── tray.go                 # System tray icon + menu
-│   │   └── store.go                # Store penceresi
+│   │   └── tray.go                 # System tray placeholder
 │   └── ipc/
 │       └── namedpipe.go            # Named Pipe server (service) + client (tray)
 ├── pkg/
@@ -109,7 +129,7 @@ agent/
 ### Faz 1: Temel Altyapı
 1. `go.mod` - Dependency'ler tanımla
 2. `internal/config/config.go` - YAML okuma/yazma
-3. `internal/system/uuid.go` - Registry UUID oku/oluştur
+3. `internal/system/uuid_windows.go` (+ `uuid_nonwindows.go`) - UUID oku/oluştur
 4. `internal/system/info.go` - Hostname, IP, OS version, CPU, RAM
 5. `internal/api/client.go` - HTTP client (register, heartbeat)
 6. `internal/heartbeat/heartbeat.go` - Timer ile periyodik gönderim
@@ -121,7 +141,7 @@ agent/
 1. `internal/downloader/downloader.go` - Bandwidth limit + resume
 2. `pkg/utils/hash.go` - SHA256 doğrulama
 3. `internal/system/disk.go` - Disk alan kontrolü
-4. `internal/installer/msi.go` - msiexec çağrısı
+4. `internal/installer/msi_windows.go` - msiexec çağrısı
 5. `internal/installer/exe.go` - EXE çağrısı
 6. `internal/installer/installer.go` - Orchestrator (dosya tipine göre yönlendir)
 7. `internal/api/client.go` - Task status raporlama ekle
@@ -153,7 +173,7 @@ agent/
 
 ### Faz 6: System Tray
 1. `internal/tray/tray.go` - Icon, menu, status updater
-2. `internal/tray/store.go` - Store penceresi (basit liste + install butonu)
+2. `internal/tray/store.go` - Store penceresi (planlanan)
 3. `cmd/tray/main.go` - Entry point
 4. Icon embed (go:embed)
 
