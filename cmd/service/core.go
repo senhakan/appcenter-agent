@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -270,6 +271,9 @@ func findExistingDownloadPath(basePath string) string {
 func resolveConfigPath() string {
 	if p := os.Getenv("APPCENTER_CONFIG"); p != "" {
 		return p
+	}
+	if runtime.GOOS == "windows" {
+		return `C:\ProgramData\AppCenter\config.yaml`
 	}
 	return "configs/config.yaml.template"
 }

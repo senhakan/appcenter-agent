@@ -3,5 +3,6 @@
 *.so
 *.dylib
 build/*.exe
+build/config.yaml
 .vscode/
 .idea/
