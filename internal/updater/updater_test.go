@@ -35,6 +35,9 @@ func TestStageIfNeededDownloadsAndWritesMetadata(t *testing.T) {
 	expectedHash := fmt.Sprintf("sha256:%x", sum[:])
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/agent.exe" {
+			t.Fatalf("path=%s", r.URL.Path)
+		}
 		// downloader sets these headers; we don't validate values here.
 		w.Header().Set("Content-Disposition", "attachment; filename=\"agent.exe\"")
 		_, _ = w.Write(content)
@@ -54,7 +57,7 @@ func TestStageIfNeededDownloadsAndWritesMetadata(t *testing.T) {
 
 	hb := map[string]any{
 		"latest_agent_version": "2.0.0",
-		"agent_download_url":   srv.URL,
+		"agent_download_url":   "/agent.exe",
 		"agent_hash":           expectedHash,
 	}
 

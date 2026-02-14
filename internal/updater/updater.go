@@ -46,11 +46,17 @@ func StageIfNeeded(
 		return err
 	}
 
+	// Server may provide relative URLs; resolve against configured server.url.
+	resolvedURL := downloadURL
+	if strings.HasPrefix(resolvedURL, "/") {
+		resolvedURL = strings.TrimRight(cfg.Server.URL, "/") + resolvedURL
+	}
+
 	stagedPath := filepath.Join(cfg.Download.TempDir, fmt.Sprintf("agent-update-%s.exe", sanitizeVersion(latestVersion)))
 
 	_, err := downloader.DownloadFileWithMeta(
 		ctx,
-		downloadURL,
+		resolvedURL,
 		stagedPath,
 		cfg.Download.BandwidthLimitKBs,
 		cfg.Agent.UUID,
@@ -74,7 +80,7 @@ func StageIfNeeded(
 		FilePath:     stagedPath,
 		Hash:         agentHash,
 		StagedAtUTC:  time.Now().UTC().Format(time.RFC3339),
-		SourceURL:    downloadURL,
+		SourceURL:    resolvedURL,
 		AgentVersion: cfg.Agent.Version,
 	}
 	metaPath := filepath.Join(cfg.Download.TempDir, "pending_update.json")
