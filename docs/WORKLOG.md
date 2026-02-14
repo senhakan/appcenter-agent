@@ -106,6 +106,20 @@ Not:
 - `appcenter-tray.exe` `-H=windowsgui` ile derlendiginden PowerShell'de `get_status/get_store` komutlari stdout'a yazsa bile gorunmez.
 - Cozum: ayni kod tabanindan ayrica console subsystem ile `appcenter-tray-cli.exe` artifact'i uretilir; CLI testleri bunda calistirilir.
 
+### Group Bazli Deployment Testi (grp2 -> 9zip/7zip 26)
+
+- Group olusturuldu: `grp2`
+- Test agent bu gruba eklendi.
+- Group hedefli deployment olusturuldu:
+  - App: `9zip` (server tarafinda `original_filename=7z2600-x64.msi`)
+  - Target: `grp2`
+  - `force_update=true`
+- Sonuc (server DB):
+  - task `status=success`, `exit_code=0`
+- Sonuc (Windows dogrulama):
+  - `C:\\Program Files\\7-Zip\\7zFM.exe` dosya versiyonu: `26.00`
+  - Windows Installer event log: `MsiInstaller` event'lerinde `7-Zip 26.00 (x64 edition) -- Installation completed successfully` kaydi goruldu.
+
 ### Faz 3 (Tamamlandi)
 
 - Queue/retry/work-hours/jitter:
