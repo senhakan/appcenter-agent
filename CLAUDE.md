@@ -35,6 +35,10 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `internal/ipc/namedpipe_windows.go`, `internal/ipc/namedpipe_nonwindows.go`, `internal/ipc/namedpipe.go`
   - `cmd/service/core.go` içinde IPC server + handler (`get_status`, `get_store`, `install_from_store`)
   - `cmd/tray/main.go` içinde IPC client (CLI tabanlı)
+- Faz 6 tamamlandı:
+  - `internal/tray/systray_windows.go`, `internal/tray/systray_nonwindows.go`, `internal/tray/tray.go`
+  - `cmd/tray/main.go` argümansız modda systray UI, argümanlı modda IPC CLI
+  - Systray menüsü: status refresh, store refresh, install_from_store tetikleme
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -185,10 +189,10 @@ agent/
 **Test:** Service çalışırken → Tray'den pipe'a bağlan → status al
 
 ### Faz 6: System Tray
-1. `internal/tray/tray.go` - Icon, menu, status updater
-2. `internal/tray/store.go` - Store penceresi (planlanan)
-3. `cmd/tray/main.go` - Entry point
-4. Icon embed (go:embed)
+1. [x] `internal/tray/systray_windows.go` - menu + status updater + store refresh
+2. [x] `internal/tray/tray.go` - tray model/helper fonksiyonları
+3. [x] `cmd/tray/main.go` - systray entrypoint + IPC CLI modu
+4. [ ] Icon embed (go:embed) (sonraki iterasyon)
 
 **Test:** Tray icon görünüyor mu? Store açılıyor mu? Install isteği service'e ulaşıyor mu?
 

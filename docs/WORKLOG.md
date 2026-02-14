@@ -157,6 +157,27 @@ Doğrulama:
 - `go test ./...` başarılı
 - `GOOS=windows GOARCH=amd64 go build ...` başarılı
 
+### Faz 6 (Tamamlandi)
+
+- Systray UI:
+  - `internal/tray/systray_windows.go`
+  - `internal/tray/systray_nonwindows.go`
+  - `internal/tray/tray.go`
+- Tray entrypoint:
+  - `cmd/tray/main.go`
+  - argümansız mod: systray
+  - argümanlı mod: `get_status`, `get_store`, `install_from_store <app_id>`
+- Store/status entegrasyonu:
+  - service IPC endpointlerinden canlı çekim
+  - systray tooltip/title güncellemesi
+- Test:
+  - `internal/tray/tray_test.go`
+
+Doğrulama:
+
+- `go test ./...` başarılı
+- `GOOS=windows GOARCH=amd64 go build ...` başarılı
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:
