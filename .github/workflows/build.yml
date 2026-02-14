@@ -40,3 +40,38 @@ jobs:
         with:
           name: appcenter-agent-windows
           path: build/*.exe
+
+  build-windows-msi:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21.x'
+
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build binaries
+        run: |
+          if (!(Test-Path build)) { New-Item -ItemType Directory -Path build | Out-Null }
+          $env:GOOS="windows"; $env:GOARCH="amd64"
+          go build -o build/appcenter-service.exe ./cmd/service
+          go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
+          go build -o build/appcenter-tray-cli.exe ./cmd/tray
+          go build -o build/appcenter-update-helper.exe ./cmd/update-helper
+
+      - name: Build MSI
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build/build-msi.ps1 -BuildDir build -SourceDir .
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcenter-agent-msi
+          path: build/*.msi

@@ -143,7 +143,8 @@ Not:
 ### Tray Autostart (All Users)
 
 - Tray uygulamasi service degildir; kullanici oturumunda baslatilmalidir.
-- Installer script `HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` altina `AppCenterTray` kaydi ekler:
+- Uretim dagitiminda bu is MSI icinde yapilir:
+  - `HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` altina `AppCenterTray` kaydi eklenir.
   - Bu sayede her kullanici logon oldugunda tray otomatik calisir.
 - Duplicate instance engelleme:
   - Windows'ta `Local\\AppCenterTray` mutex ile ayni session icinde ikinci instance engellenir.

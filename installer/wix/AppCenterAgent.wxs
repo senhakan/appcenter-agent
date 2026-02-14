@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?define ProductName="AppCenter Agent" ?>
+  <?define Manufacturer="AppCenter" ?>
+
+  <!--
+    Build variables (passed via candle.exe):
+      -dProductVersion=0.1.3
+      -dBuildDir=build
+      -dSourceDir=.
+  -->
+  <Product
+    Id="*"
+    Name="$(var.ProductName)"
+    Manufacturer="$(var.Manufacturer)"
+    Language="1033"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="DB6D7C49-3459-41EE-B750-B8167D576072">
+
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of AppCenter Agent is already installed." />
+    <MediaTemplate />
+
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <ComponentRef Id="cmpServiceExe" />
+      <ComponentRef Id="cmpTrayExe" />
+      <ComponentRef Id="cmpTrayCliExe" />
+      <ComponentRef Id="cmpUpdateHelperExe" />
+      <ComponentRef Id="cmpTrayAutoStart" />
+      <ComponentRef Id="cmpConfigFile" />
+      <ComponentRef Id="cmpDownloadsDir" />
+      <ComponentRef Id="cmpLogsDir" />
+    </Feature>
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="AppCenter" />
+      </Directory>
+
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="APPDATAFOLDER" Name="AppCenter">
+          <Directory Id="DOWNLOADSFOLDER" Name="downloads" />
+          <Directory Id="LOGSFOLDER" Name="logs" />
+        </Directory>
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <!-- Service -->
+    <Component Id="cmpServiceExe" Guid="FD2A7E35-3D53-4DA2-A82E-B87E4BEB74C1" Directory="INSTALLFOLDER">
+      <File Id="filServiceExe" Source="$(var.BuildDir)\appcenter-service.exe" KeyPath="yes" />
+
+      <ServiceInstall
+        Id="svcInstall"
+        Name="AppCenterAgent"
+        DisplayName="AppCenterAgent"
+        Description="AppCenter Agent Service"
+        Type="ownProcess"
+        Start="auto"
+        ErrorControl="normal"
+        Vital="yes" />
+
+      <ServiceControl
+        Id="svcControl"
+        Name="AppCenterAgent"
+        Start="install"
+        Stop="both"
+        Remove="uninstall"
+        Wait="yes" />
+    </Component>
+
+    <!-- Tray binaries -->
+    <Component Id="cmpTrayExe" Guid="7C41837E-D0CE-4310-A3E6-367F9E0E9807" Directory="INSTALLFOLDER">
+      <File Id="filTrayExe" Source="$(var.BuildDir)\appcenter-tray.exe" KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpTrayCliExe" Guid="2FCDB2C7-2EEF-4548-8576-891F40AFCBBC" Directory="INSTALLFOLDER">
+      <File Id="filTrayCliExe" Source="$(var.BuildDir)\appcenter-tray-cli.exe" KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpUpdateHelperExe" Guid="6C7C0357-86F0-477C-B491-1D342DB74D8A" Directory="INSTALLFOLDER">
+      <File Id="filUpdateHelperExe" Source="$(var.BuildDir)\appcenter-update-helper.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Tray autostart for all users -->
+    <Component Id="cmpTrayAutoStart" Guid="0F8EFE56-3518-4BE3-A9F6-9C81AB150510" Directory="INSTALLFOLDER">
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\Microsoft\Windows\CurrentVersion\Run"
+        Name="AppCenterTray"
+        Type="string"
+        Value="&quot;[INSTALLFOLDER]appcenter-tray.exe&quot;"
+        KeyPath="yes" />
+    </Component>
+
+    <!-- ProgramData config -->
+    <Component Id="cmpConfigFile" Guid="D3985A99-F1E2-42FA-85BD-7ADC1DD828F1" Directory="APPDATAFOLDER">
+      <!-- NeverOverwrite preserves local changes on upgrade/repair. -->
+      <File
+        Id="filConfig"
+        Source="$(var.SourceDir)\configs\config.yaml.template"
+        Name="config.yaml"
+        KeyPath="yes"
+        NeverOverwrite="yes" />
+    </Component>
+
+    <!-- Ensure runtime folders exist -->
+    <Component Id="cmpDownloadsDir" Guid="64417B5A-E4E2-4E27-9770-25A8F381EBD8" Directory="DOWNLOADSFOLDER">
+      <CreateFolder />
+      <RemoveFolder Id="rmDownloadsDir" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\AppCenter\Agent" Name="DownloadsDir" Type="string" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpLogsDir" Guid="E8C451D5-FBAA-44B4-9950-99B787F6109C" Directory="LOGSFOLDER">
+      <CreateFolder />
+      <RemoveFolder Id="rmLogsDir" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\AppCenter\Agent" Name="LogsDir" Type="string" Value="1" KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>
+

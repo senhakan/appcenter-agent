@@ -50,6 +50,16 @@ build\\build.bat
 build\\service-install.bat
 ```
 
+## MSI Installer (Windows)
+
+CI `build-windows-msi` job'i ile agent icin MSI uretilir. MSI su islemleri yapar:
+
+- `C:\Program Files\AppCenter` altina binary'leri kurar
+- `AppCenterAgent` Windows servisini kurar ve baslatir
+- `C:\ProgramData\AppCenter\config.yaml` config dosyasini ilk kez yerlestirir (upgrade'de overwrite etmez)
+- Tray uygulamasini tum kullanicilar icin logon'da baslatmak uzere kayit ekler:
+  - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
+
 ## Konfigurasyon
 
 Varsayilan config ornegi: `configs/config.yaml.template`
