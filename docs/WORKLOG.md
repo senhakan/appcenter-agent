@@ -117,6 +117,23 @@ Doğrulama:
 - `go test ./...` başarılı
 - `GOOS=windows GOARCH=amd64 go build ...` başarılı
 
+### Faz 4 (Tamamlandi)
+
+- Windows service wrapper:
+  - `cmd/service/main_windows.go`
+  - `cmd/service/service_windows.go`
+- Ortak runtime ayrıştırması:
+  - `cmd/service/core.go`
+  - `cmd/service/main.go` (`!windows` console entrypoint)
+- Windows yardımcı scriptleri:
+  - `build/build.bat`
+  - `build/service-install.bat`
+
+Doğrulama:
+
+- `go test ./...` başarılı
+- `GOOS=windows GOARCH=amd64 go build ...` başarılı
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

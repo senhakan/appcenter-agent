@@ -7,6 +7,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - Faz 1 tamamlandi (bootstrap, register, heartbeat, config, uuid).
 - Faz 2 tamamlandi (downloader/resume, installer, task status client).
 - Faz 3 tamamlandi (task queue, retry, UTC work-hours, jitter, apps_changed entegrasyonu).
+- Faz 4 tamamlandi (Windows service wrapper + service install/build scriptleri).
 - GitHub Actions ile her push'ta test + Windows build calisiyor.
 
 ## Bu Repoda Olanlar
@@ -17,6 +18,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - Config yonetimi: `internal/config/config.go`
 - Heartbeat dongusu: `internal/heartbeat/heartbeat.go`
 - Task queue + retry + work-hours: `internal/queue/taskqueue.go`
+- Windows service wrapper: `cmd/service/main_windows.go`, `cmd/service/service_windows.go`
 - Downloader (rate limit + resume): `internal/downloader/downloader.go`
 - Installer (`.msi` / `.exe`): `internal/installer/*`
 - UUID + host info: `internal/system/*`
@@ -34,6 +36,10 @@ go test ./...
 # windows build (linux/macos ortaminda cross-compile)
 GOOS=windows GOARCH=amd64 go build -o build/appcenter-service.exe ./cmd/service
 GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
+
+# windows'ta yardimci scriptler
+build\\build.bat
+build\\service-install.bat
 ```
 
 ## Konfigurasyon
@@ -74,8 +80,8 @@ Pipeline adimlari:
 
 ## Sonraki Asama
 
-Faz 4:
+Faz 5:
 
-- Gercek Windows service wrapper (`x/sys/windows/svc`)
-- Service install/start/stop lifecycle
-- Graceful shutdown iyilestirmeleri
+- Named Pipe IPC server/client
+- Tray ile service arasinda request/response protokolu
+- Store aksiyonlarinin service'e devri

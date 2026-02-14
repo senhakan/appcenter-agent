@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build windows
 
 package main
 
@@ -8,9 +8,24 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"golang.org/x/sys/windows/svc"
 )
 
 func main() {
+	isService, err := svc.IsWindowsService()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to detect service mode: %v\n", err)
+		os.Exit(1)
+	}
+
+	if isService {
+		if err := svc.Run(serviceName, &appCenterService{}); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 

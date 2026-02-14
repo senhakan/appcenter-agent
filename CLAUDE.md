@@ -26,6 +26,11 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `internal/queue/taskqueue.go` (task queue + retry + UTC work-hours + jitter)
   - `internal/heartbeat/heartbeat.go` (`apps_changed` + queue integrated heartbeat payload)
   - `cmd/service/main.go` (heartbeat sonuçlarından queue besleme + task yürütme + status report)
+- Faz 4 tamamlandı:
+  - `cmd/service/main_windows.go` (`svc.IsWindowsService` ile mode tespiti)
+  - `cmd/service/service_windows.go` (Windows service lifecycle: start/stop/shutdown)
+  - `cmd/service/core.go` (service/console ortak runtime çekirdeği)
+  - `build/build.bat`, `build/service-install.bat`
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -161,10 +166,10 @@ agent/
 **Test:** Başarısız kurulum → retry → max 3 deneme → failed raporu
 
 ### Faz 4: Windows Service
-1. `cmd/service/main.go` - `golang.org/x/sys/windows/svc` entegrasyonu
-2. Service install/start/stop
-3. Graceful shutdown
-4. Log dosyasına yazma
+1. [x] `cmd/service/main_windows.go` + `cmd/service/service_windows.go` - `golang.org/x/sys/windows/svc` entegrasyonu
+2. [x] Service install/start/stop (`build/service-install.bat`)
+3. [x] Graceful shutdown (service stop/shutdown sinyali ile context cancel)
+4. [x] Log dosyasına yazma (ortak runtime `core.go` üzerinden)
 
 **Test:** `sc create AppCenterAgent` → reboot → otomatik başlıyor mu?
 
