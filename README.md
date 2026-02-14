@@ -6,6 +6,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 
 - Faz 1 tamamlandi (bootstrap, register, heartbeat, config, uuid).
 - Faz 2 tamamlandi (downloader/resume, installer, task status client).
+- Faz 3 tamamlandi (task queue, retry, UTC work-hours, jitter, apps_changed entegrasyonu).
 - GitHub Actions ile her push'ta test + Windows build calisiyor.
 
 ## Bu Repoda Olanlar
@@ -15,6 +16,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - API istemcisi: `internal/api/client.go`
 - Config yonetimi: `internal/config/config.go`
 - Heartbeat dongusu: `internal/heartbeat/heartbeat.go`
+- Task queue + retry + work-hours: `internal/queue/taskqueue.go`
 - Downloader (rate limit + resume): `internal/downloader/downloader.go`
 - Installer (`.msi` / `.exe`): `internal/installer/*`
 - UUID + host info: `internal/system/*`
@@ -72,9 +74,8 @@ Pipeline adimlari:
 
 ## Sonraki Asama
 
-Faz 3:
+Faz 4:
 
-- Task queue + retry
-- UTC work-hours kontrolu
-- jitter stratejisi
-- `apps_changed` akisinin queue ile entegrasyonu
+- Gercek Windows service wrapper (`x/sys/windows/svc`)
+- Service install/start/stop lifecycle
+- Graceful shutdown iyilestirmeleri

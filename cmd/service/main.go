@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"appcenter-agent/internal/api"
 	"appcenter-agent/internal/config"
+	"appcenter-agent/internal/downloader"
 	"appcenter-agent/internal/heartbeat"
+	"appcenter-agent/internal/installer"
+	"appcenter-agent/internal/queue"
 	"appcenter-agent/internal/system"
 	"appcenter-agent/pkg/utils"
 )
@@ -35,7 +40,8 @@ func main() {
 	}
 	defer logFile.Close()
 
-	if err := bootstrapAgent(cfg, logger); err != nil {
+	client := api.NewClient(cfg.Server)
+	if err := bootstrapAgent(client, cfg, logger); err != nil {
 		logger.Printf("bootstrap failed: %v", err)
 		os.Exit(1)
 	}
@@ -43,16 +49,48 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	sender := heartbeat.NewSender(api.NewClient(cfg.Server), cfg, logger)
+	taskQueue := queue.NewTaskQueue(3)
+	pollResults := make(chan heartbeat.PollResult, 8)
+
+	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue)
 	go sender.Start(ctx)
 
+	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
+		_, err := client.ReportTaskStatus(ctx, cfg.Agent.UUID, cfg.Agent.SecretKey, taskID, req)
+		if err != nil {
+			logger.Printf("task status report failed for task=%d: %v", taskID, err)
+		}
+		return err
+	}
+
+	executeFn := func(ctx context.Context, cmd api.Command) (queue.ExecutionResult, error) {
+		return executeCommand(ctx, *cfg, cmd)
+	}
+
 	logger.Println("service loop started")
-	<-ctx.Done()
-	time.Sleep(200 * time.Millisecond)
-	logger.Println("service loop stopped")
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Println("service loop stopping")
+			time.Sleep(200 * time.Millisecond)
+			logger.Println("service loop stopped")
+			return
+		case result := <-pollResults:
+			taskQueue.AddCommands(result.Commands)
+			logger.Printf("received %d command(s), pending=%d", len(result.Commands), taskQueue.PendingCount())
+
+			for {
+				processed := taskQueue.ProcessOne(ctx, result.ServerTime, *cfg, executeFn, reportFn)
+				if !processed {
+					break
+				}
+			}
+		}
+	}
 }
 
-func bootstrapAgent(cfg *config.Config, logger interface{ Printf(string, ...any) }) error {
+func bootstrapAgent(client *api.Client, cfg *config.Config, logger interface{ Printf(string, ...any) }) error {
 	if cfg.Agent.UUID == "" {
 		u, err := system.GetOrCreateUUID()
 		if err != nil {
@@ -61,7 +99,6 @@ func bootstrapAgent(cfg *config.Config, logger interface{ Printf(string, ...any)
 		cfg.Agent.UUID = u
 	}
 
-	client := api.NewClient(cfg.Server)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -84,6 +121,85 @@ func bootstrapAgent(cfg *config.Config, logger interface{ Printf(string, ...any)
 
 	logger.Printf("agent bootstrap reused existing credentials: %s", cfg.Agent.UUID)
 	return nil
+}
+
+func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (queue.ExecutionResult, error) {
+	if err := os.MkdirAll(cfg.Download.TempDir, 0o755); err != nil {
+		return queue.ExecutionResult{ExitCode: -1}, err
+	}
+
+	basePath := filepath.Join(cfg.Download.TempDir, fmt.Sprintf("task_%d_app_%d", cmd.TaskID, cmd.AppID))
+	downloadPath := findExistingDownloadPath(basePath)
+
+	downloadURL := cmd.DownloadURL
+	if strings.HasPrefix(downloadURL, "/") {
+		downloadURL = strings.TrimRight(cfg.Server.URL, "/") + downloadURL
+	}
+
+	downloadStarted := time.Now()
+	meta, err := downloader.DownloadFileWithMeta(
+		ctx,
+		downloadURL,
+		downloadPath,
+		cfg.Download.BandwidthLimitKBs,
+		cfg.Agent.UUID,
+		cfg.Agent.SecretKey,
+	)
+	downloadDuration := int(time.Since(downloadStarted).Seconds())
+	if err != nil {
+		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, fmt.Errorf("download failed: %w", err)
+	}
+
+	installPath := downloadPath
+	if ext := strings.ToLower(filepath.Ext(meta.Filename)); ext == ".msi" || ext == ".exe" {
+		candidate := basePath + ext
+		if candidate != downloadPath {
+			if renameErr := os.Rename(downloadPath, candidate); renameErr == nil {
+				installPath = candidate
+			}
+		}
+	}
+
+	valid, err := utils.VerifyFileHash(installPath, cmd.FileHash)
+	if err != nil {
+		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, fmt.Errorf("hash verification failed: %w", err)
+	}
+	if !valid {
+		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, errors.New("hash mismatch")
+	}
+
+	installStarted := time.Now()
+	exitCode, err := installer.Install(installPath, cmd.InstallArgs, cfg.Install.TimeoutSec)
+	installDuration := int(time.Since(installStarted).Seconds())
+	if err != nil {
+		return queue.ExecutionResult{
+			ExitCode:            exitCode,
+			DownloadDurationSec: downloadDuration,
+			InstallDurationSec:  installDuration,
+		}, fmt.Errorf("install failed: %w", err)
+	}
+
+	if cfg.Install.EnableAutoCleanup {
+		_ = os.Remove(installPath)
+	}
+
+	return queue.ExecutionResult{
+		ExitCode:            0,
+		InstalledVersion:    cmd.AppVersion,
+		DownloadDurationSec: downloadDuration,
+		InstallDurationSec:  installDuration,
+		Message:             "Installation completed successfully",
+	}, nil
+}
+
+func findExistingDownloadPath(basePath string) string {
+	for _, ext := range []string{".msi", ".exe", ".bin"} {
+		candidate := basePath + ext
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return basePath + ".bin"
 }
 
 func resolveWritableConfigPath() string {

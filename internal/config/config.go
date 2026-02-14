@@ -12,6 +12,7 @@ type Config struct {
 	Agent     AgentConfig     `yaml:"agent"`
 	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
 	Download  DownloadConfig  `yaml:"download"`
+	Install   InstallConfig   `yaml:"install"`
 	WorkHours WorkHoursConfig `yaml:"work_hours"`
 	Logging   LoggingConfig   `yaml:"logging"`
 }
@@ -34,6 +35,11 @@ type HeartbeatConfig struct {
 type DownloadConfig struct {
 	TempDir           string `yaml:"temp_dir"`
 	BandwidthLimitKBs int    `yaml:"bandwidth_limit_kbps"`
+}
+
+type InstallConfig struct {
+	TimeoutSec        int  `yaml:"timeout_sec"`
+	EnableAutoCleanup bool `yaml:"enable_auto_cleanup"`
 }
 
 type WorkHoursConfig struct {
@@ -82,6 +88,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Download.BandwidthLimitKBs <= 0 {
 		return errors.New("download.bandwidth_limit_kbps must be > 0")
+	}
+	if c.Install.TimeoutSec <= 0 {
+		return errors.New("install.timeout_sec must be > 0")
 	}
 	if c.Agent.Version == "" {
 		return errors.New("agent.version is required")

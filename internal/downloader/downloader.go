@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/time/rate"
 )
@@ -26,9 +29,29 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+type DownloadResult struct {
+	BytesWritten int64
+	Filename     string
+}
+
 func DownloadFile(ctx context.Context, downloadURL, destPath string, limitKBps int, agentUUID, secretKey string) (int64, error) {
+	res, err := DownloadFileWithMeta(ctx, downloadURL, destPath, limitKBps, agentUUID, secretKey)
+	if err != nil {
+		return 0, err
+	}
+	return res.BytesWritten, nil
+}
+
+func DownloadFileWithMeta(
+	ctx context.Context,
+	downloadURL,
+	destPath string,
+	limitKBps int,
+	agentUUID,
+	secretKey string,
+) (*DownloadResult, error) {
 	if limitKBps <= 0 {
-		return 0, fmt.Errorf("invalid bandwidth limit: %d", limitKBps)
+		return nil, fmt.Errorf("invalid bandwidth limit: %d", limitKBps)
 	}
 
 	resumeOffset := int64(0)
@@ -38,7 +61,7 @@ func DownloadFile(ctx context.Context, downloadURL, destPath string, limitKBps i
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	req.Header.Set("X-Agent-UUID", agentUUID)
 	req.Header.Set("X-Agent-Secret", secretKey)
@@ -48,12 +71,12 @@ func DownloadFile(ctx context.Context, downloadURL, destPath string, limitKBps i
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return 0, fmt.Errorf("download request failed: %s", resp.Status)
+		return nil, fmt.Errorf("download request failed: %s", resp.Status)
 	}
 
 	openFlags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
@@ -63,7 +86,7 @@ func DownloadFile(ctx context.Context, downloadURL, destPath string, limitKBps i
 
 	out, err := os.OpenFile(destPath, openFlags, 0o644)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer out.Close()
 
@@ -75,7 +98,22 @@ func DownloadFile(ctx context.Context, downloadURL, destPath string, limitKBps i
 
 	n, err := io.Copy(out, lr)
 	if err != nil {
-		return n, err
+		return nil, err
 	}
-	return n, nil
+	return &DownloadResult{
+		BytesWritten: n,
+		Filename:     extractFilename(resp.Header.Get("Content-Disposition"), destPath),
+	}, nil
+}
+
+func extractFilename(contentDisposition, fallbackPath string) string {
+	if contentDisposition != "" {
+		_, params, err := mime.ParseMediaType(contentDisposition)
+		if err == nil {
+			if filename := strings.TrimSpace(params["filename"]); filename != "" {
+				return filename
+			}
+		}
+	}
+	return filepath.Base(fallbackPath)
 }

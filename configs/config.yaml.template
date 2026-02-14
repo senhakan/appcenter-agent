@@ -14,6 +14,10 @@ download:
   temp_dir: "C:\\ProgramData\\AppCenter\\downloads"
   bandwidth_limit_kbps: 1024
 
+install:
+  timeout_sec: 1800
+  enable_auto_cleanup: true
+
 work_hours:
   start_utc: "09:00"
   end_utc: "18:00"

@@ -22,6 +22,10 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `internal/downloader/downloader.go` (bandwidth limit + resume)
   - `internal/installer/installer.go`, `internal/installer/msi_windows.go`, `internal/installer/msi_nonwindows.go`, `internal/installer/exe.go`
   - `internal/api/client.go` (`ReportTaskStatus`)
+- Faz 3 tamamlandı:
+  - `internal/queue/taskqueue.go` (task queue + retry + UTC work-hours + jitter)
+  - `internal/heartbeat/heartbeat.go` (`apps_changed` + queue integrated heartbeat payload)
+  - `cmd/service/main.go` (heartbeat sonuçlarından queue besleme + task yürütme + status report)
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -149,10 +153,10 @@ agent/
 **Test:** Heartbeat'ten gelen task'ı indir → hash doğrula → kur → rapor et
 
 ### Faz 3: Task Queue & Retry
-1. `internal/queue/taskqueue.go` - Queue + retry logic
-2. Time window checker (UTC)
-3. Jitter ekleme (0-5 dk rastgele gecikme)
-4. `apps_changed` flag mantığı
+1. [x] `internal/queue/taskqueue.go` - Queue + retry logic
+2. [x] Time window checker (UTC)
+3. [x] Jitter ekleme (0-5 dk rastgele gecikme)
+4. [x] `apps_changed` flag mantığı
 
 **Test:** Başarısız kurulum → retry → max 3 deneme → failed raporu
 

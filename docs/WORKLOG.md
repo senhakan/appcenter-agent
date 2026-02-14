@@ -93,6 +93,30 @@ Not:
   - `C:\ProgramData\AppCenter\logs\msi-missing.out`
   - `C:\ProgramData\AppCenter\logs\msi-invalid.out`
 
+### Faz 3 (Tamamlandi)
+
+- Queue/retry/work-hours/jitter:
+  - `internal/queue/taskqueue.go`
+  - `internal/queue/taskqueue_test.go`
+- Heartbeat queue entegrasyonu:
+  - `internal/heartbeat/heartbeat.go`
+  - `apps_changed` + `installed_apps` payload üretimi queue'dan besleniyor
+- Service orchestration:
+  - `cmd/service/main.go`
+  - heartbeat komutlarını queue'ya alma, task yürütme, status report gönderme
+- Executor akışı:
+  - `internal/downloader/downloader.go` (`DownloadFileWithMeta`)
+  - hash doğrulama + installer çağrısı + auto cleanup
+- Config güncellemesi:
+  - `internal/config/config.go`
+  - `configs/config.yaml.template`
+  - yeni alanlar: `install.timeout_sec`, `install.enable_auto_cleanup`
+
+Doğrulama:
+
+- `go test ./...` başarılı
+- `GOOS=windows GOARCH=amd64 go build ...` başarılı
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:
