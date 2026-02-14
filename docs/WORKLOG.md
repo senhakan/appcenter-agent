@@ -134,6 +134,8 @@ Not:
 ### System Tray Icon Testi (Windows)
 
 - Tray icon sadece kullanici oturumunda gorunur; Windows service (Session 0) tray icon gosteremez.
+- Ikon gorunmeme durumu icin not:
+  - Windows'ta systray ikonunun gorunmesi icin `systray.SetIcon()` cagrisinin yapilmasi gerekir; aksi halde proses calissa bile ikon cikmayabilir.
 - Test icin tray binary interaktif session'da calistirildi (RDP session):
   - `appcenter-tray-cli.exe` argumansiz calistirilinca systray mode acilir.
   - Gerekirse `schtasks /IT` ile interaktif session'a start edilebilir.

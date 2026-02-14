@@ -26,6 +26,9 @@ func Run() error {
 }
 
 func (a *App) onReady() {
+	if b := appIconBytes(); len(b) > 0 {
+		systray.SetIcon(b)
+	}
 	systray.SetTitle("AppCenter")
 	systray.SetTooltip("AppCenter Agent")
 
