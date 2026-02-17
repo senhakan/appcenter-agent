@@ -275,6 +275,11 @@ Not:
     - cikti MSI dosyasi yoksa throw
   - `installer/wix/AppCenterAgent.wxs` icin `MediaTemplate EmbedCab=\"yes\"` acildi:
     - MSI artifact tek dosya olarak dagitilabilir (ayri `.cab` bagimliligi olmaz).
+  - MSI bitness duzeltmesi:
+    - `Package Platform=\"x64\"`
+    - `ProgramFiles64Folder`
+    - Component'lerde `Win64=\"yes\"`
+    - Neden: 32-bit MSI oldugunda dosyalar `Program Files (x86)` altina ve `AppCenterTray` kaydi `WOW6432Node` altina yaziliyordu.
 - Beklenen sonuc:
   - Gercek hata durumunda CI fail olur (false-positive yok)
   - Basarili run'da `build/*.msi` artifact olarak yuklenir.

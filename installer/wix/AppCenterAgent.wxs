@@ -17,7 +17,7 @@
     Version="$(var.ProductVersion)"
     UpgradeCode="DB6D7C49-3459-41EE-B750-B8167D576072">
 
-    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of AppCenter Agent is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
@@ -35,7 +35,7 @@
 
   <Fragment>
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
+      <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="AppCenter" />
       </Directory>
 
@@ -50,7 +50,7 @@
 
   <Fragment>
     <!-- Service -->
-    <Component Id="cmpServiceExe" Guid="FD2A7E35-3D53-4DA2-A82E-B87E4BEB74C1" Directory="INSTALLFOLDER">
+    <Component Id="cmpServiceExe" Guid="FD2A7E35-3D53-4DA2-A82E-B87E4BEB74C1" Directory="INSTALLFOLDER" Win64="yes">
       <File Id="filServiceExe" Source="$(var.BuildDir)\appcenter-service.exe" KeyPath="yes" />
 
       <ServiceInstall
@@ -73,20 +73,20 @@
     </Component>
 
     <!-- Tray binaries -->
-    <Component Id="cmpTrayExe" Guid="7C41837E-D0CE-4310-A3E6-367F9E0E9807" Directory="INSTALLFOLDER">
+    <Component Id="cmpTrayExe" Guid="7C41837E-D0CE-4310-A3E6-367F9E0E9807" Directory="INSTALLFOLDER" Win64="yes">
       <File Id="filTrayExe" Source="$(var.BuildDir)\appcenter-tray.exe" KeyPath="yes" />
     </Component>
 
-    <Component Id="cmpTrayCliExe" Guid="2FCDB2C7-2EEF-4548-8576-891F40AFCBBC" Directory="INSTALLFOLDER">
+    <Component Id="cmpTrayCliExe" Guid="2FCDB2C7-2EEF-4548-8576-891F40AFCBBC" Directory="INSTALLFOLDER" Win64="yes">
       <File Id="filTrayCliExe" Source="$(var.BuildDir)\appcenter-tray-cli.exe" KeyPath="yes" />
     </Component>
 
-    <Component Id="cmpUpdateHelperExe" Guid="6C7C0357-86F0-477C-B491-1D342DB74D8A" Directory="INSTALLFOLDER">
+    <Component Id="cmpUpdateHelperExe" Guid="6C7C0357-86F0-477C-B491-1D342DB74D8A" Directory="INSTALLFOLDER" Win64="yes">
       <File Id="filUpdateHelperExe" Source="$(var.BuildDir)\appcenter-update-helper.exe" KeyPath="yes" />
     </Component>
 
     <!-- Tray autostart for all users -->
-    <Component Id="cmpTrayAutoStart" Guid="0F8EFE56-3518-4BE3-A9F6-9C81AB150510" Directory="INSTALLFOLDER">
+    <Component Id="cmpTrayAutoStart" Guid="0F8EFE56-3518-4BE3-A9F6-9C81AB150510" Directory="INSTALLFOLDER" Win64="yes">
       <RegistryValue
         Root="HKLM"
         Key="Software\Microsoft\Windows\CurrentVersion\Run"
@@ -97,7 +97,7 @@
     </Component>
 
     <!-- ProgramData config -->
-    <Component Id="cmpConfigFile" Guid="D3985A99-F1E2-42FA-85BD-7ADC1DD828F1" Directory="APPDATAFOLDER" NeverOverwrite="yes">
+    <Component Id="cmpConfigFile" Guid="D3985A99-F1E2-42FA-85BD-7ADC1DD828F1" Directory="APPDATAFOLDER" NeverOverwrite="yes" Win64="yes">
       <!-- NeverOverwrite preserves local changes on upgrade/repair. -->
       <File
         Id="filConfig"
@@ -107,13 +107,13 @@
     </Component>
 
     <!-- Ensure runtime folders exist -->
-    <Component Id="cmpDownloadsDir" Guid="64417B5A-E4E2-4E27-9770-25A8F381EBD8" Directory="DOWNLOADSFOLDER">
+    <Component Id="cmpDownloadsDir" Guid="64417B5A-E4E2-4E27-9770-25A8F381EBD8" Directory="DOWNLOADSFOLDER" Win64="yes">
       <CreateFolder />
       <RemoveFolder Id="rmDownloadsDir" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\AppCenter\Agent" Name="DownloadsDir" Type="string" Value="1" KeyPath="yes" />
     </Component>
 
-    <Component Id="cmpLogsDir" Guid="E8C451D5-FBAA-44B4-9950-99B787F6109C" Directory="LOGSFOLDER">
+    <Component Id="cmpLogsDir" Guid="E8C451D5-FBAA-44B4-9950-99B787F6109C" Directory="LOGSFOLDER" Win64="yes">
       <CreateFolder />
       <RemoveFolder Id="rmLogsDir" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\AppCenter\Agent" Name="LogsDir" Type="string" Value="1" KeyPath="yes" />
