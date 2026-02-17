@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -16,6 +17,9 @@ type appxPkg struct {
 	Publisher    string `json:"Publisher"`
 	Architecture string `json:"Architecture"`
 }
+
+var guidLikeRe = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+var hexLikeRe = regexp.MustCompile(`(?i)^[0-9a-f]{12,40}$`)
 
 func scanAppxPackagesAllUsers() []SoftwareItem {
 	// PowerShell is the most pragmatic way to enumerate Appx packages without
@@ -55,12 +59,21 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 
 	items := make([]SoftwareItem, 0, len(many))
 	for _, p := range many {
-		name := strings.TrimSpace(p.Name)
-		if name == "" {
+		rawName := strings.TrimSpace(p.Name)
+		if rawName == "" {
+			continue
+		}
+		// Skip non-user-facing packages that show up as GUID/hex identifiers.
+		// These are typically Windows components that are not meaningful inventory entries.
+		if guidLikeRe.MatchString(rawName) || hexLikeRe.MatchString(rawName) {
+			continue
+		}
+		display := shortenAppxName(rawName)
+		if display == "" || guidLikeRe.MatchString(display) || hexLikeRe.MatchString(display) {
 			continue
 		}
 		items = append(items, SoftwareItem{
-			Name:         shortenAppxName(name),
+			Name:         display,
 			Version:      strings.TrimSpace(p.Version),
 			Publisher:    strings.TrimSpace(p.Publisher),
 			Architecture: strings.TrimSpace(p.Architecture),
@@ -70,7 +83,11 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 }
 
 func shortenAppxName(pkgName string) string {
-	parts := strings.Split(strings.TrimSpace(pkgName), ".")
+	pkgName = strings.TrimSpace(pkgName)
+	if pkgName == "" {
+		return ""
+	}
+	parts := strings.Split(pkgName, ".")
 	if len(parts) == 0 {
 		return pkgName
 	}
@@ -109,6 +126,11 @@ func shortenAppxName(pkgName string) string {
 	base := ""
 	if tailStart > 0 {
 		base = strings.TrimSpace(parts[tailStart-1])
+	}
+	// Avoid overly generic base segments (e.g. "...WinAppRuntime.Main.1.5" -> "Main 1.5").
+	// Prefer the previous segment when available.
+	if (strings.EqualFold(base, "main") || strings.EqualFold(base, "manager")) && tailStart >= 2 {
+		base = strings.TrimSpace(parts[tailStart-2])
 	}
 	if base == "" || suffix == "" {
 		return pkgName
