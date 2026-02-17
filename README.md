@@ -82,6 +82,12 @@ Gerekli minimum alanlar:
 - `heartbeat.interval_sec`
 - `download.bandwidth_limit_kbps`
 
+## System Profile Reporting
+
+- Agent; OS/donanim/virtualization/disk gibi nispeten statik bilgileri periyodik olarak `system_profile` alaninda gonderir.
+- Periyot: `system_profile.report_interval_min` (default: `720`).
+- Bu veri her heartbeat'te gonderilmez.
+
 ## CI/CD
 
 Workflow: `.github/workflows/build.yml`
