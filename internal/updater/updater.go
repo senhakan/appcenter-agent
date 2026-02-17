@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,8 @@ type StagedUpdate struct {
 	AgentVersion string `json:"agent_version"`
 }
 
+var semverLikeRe = regexp.MustCompile(`\d+(?:\.\d+){0,2}`)
+
 func StageIfNeeded(
 	ctx context.Context,
 	cfg config.Config,
@@ -38,7 +42,8 @@ func StageIfNeeded(
 	if latestVersion == "" || downloadURL == "" || agentHash == "" {
 		return nil
 	}
-	if latestVersion == cfg.Agent.Version {
+	// Avoid downgrades or re-staging the same/older version if server config is behind.
+	if !isNewerVersion(latestVersion, cfg.Agent.Version) {
 		return nil
 	}
 
@@ -96,4 +101,40 @@ func StageIfNeeded(
 func sanitizeVersion(v string) string {
 	r := strings.NewReplacer("/", "_", "\\", "_", ":", "_", " ", "_")
 	return r.Replace(v)
+}
+
+// isNewerVersion compares two version strings and returns true if target > current.
+// We intentionally support sloppy inputs (e.g. "1.2.3 / build:7") by extracting the
+// first semver-like token and comparing numerically.
+func isNewerVersion(target string, current string) bool {
+	t := extractSemver3(target)
+	c := extractSemver3(current)
+	if t == nil || c == nil {
+		// If parsing fails, keep the old behavior (don't surprise by forcing updates).
+		return target != "" && target != current
+	}
+	if t[0] != c[0] {
+		return t[0] > c[0]
+	}
+	if t[1] != c[1] {
+		return t[1] > c[1]
+	}
+	return t[2] > c[2]
+}
+
+func extractSemver3(v string) []int {
+	m := semverLikeRe.FindString(v)
+	if m == "" {
+		return nil
+	}
+	parts := strings.Split(m, ".")
+	out := []int{0, 0, 0}
+	for i := 0; i < len(parts) && i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return nil
+		}
+		out[i] = n
+	}
+	return out
 }
