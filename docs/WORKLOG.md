@@ -259,6 +259,23 @@ Not:
 
 - MSI artifact'ini bu ortamdan otomatik cekmek icin bir yetkilendirme/publish mekanizmasi gerekir (PAT veya Release).
   - Bu repo dokumanlari bilerek herhangi bir IP/kullanici/sifre bilgisi tutmaz.
+
+## 2026-02-17
+
+### MSI CI Duzeltmesi
+
+- `build-windows-msi` job log incelemesinde iki kritik sorun tespit edildi:
+  - `installer/wix/AppCenterAgent.wxs`: `NeverOverwrite` attribute'u `File` elementinde oldugu icin `candle.exe` hata veriyordu.
+  - `build/build-msi.ps1`: `candle.exe` / `light.exe` hata kodlarini kontrol etmedigi icin script "MSI written" yazip basarili gorunebiliyordu.
+- Yapilan fix:
+  - `NeverOverwrite="yes"` `Component` seviyesine alindi (`cmpConfigFile`).
+  - `build/build-msi.ps1` icine strict exit-code kontrolu eklendi:
+    - `candle.exe` hata verirse throw
+    - `light.exe` hata verirse throw
+    - cikti MSI dosyasi yoksa throw
+- Beklenen sonuc:
+  - Gercek hata durumunda CI fail olur (false-positive yok)
+  - Basarili run'da `build/*.msi` artifact olarak yuklenir.
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

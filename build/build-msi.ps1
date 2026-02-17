@@ -42,10 +42,19 @@ Write-Host "Building MSI version=$Version ..."
   "-dSourceDir=$SourceDir" `
   "-out" $obj `
   $wxs
+if ($LASTEXITCODE -ne 0) {
+  throw "candle.exe failed with exit code $LASTEXITCODE"
+}
 
 & light.exe `
   "-out" $msi `
   $obj
+if ($LASTEXITCODE -ne 0) {
+  throw "light.exe failed with exit code $LASTEXITCODE"
+}
+
+if (-not (Test-Path $msi)) {
+  throw "MSI output not found: $msi"
+}
 
 Write-Host "MSI written: $msi"
-

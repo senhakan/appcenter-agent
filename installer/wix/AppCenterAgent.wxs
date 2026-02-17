@@ -97,14 +97,13 @@
     </Component>
 
     <!-- ProgramData config -->
-    <Component Id="cmpConfigFile" Guid="D3985A99-F1E2-42FA-85BD-7ADC1DD828F1" Directory="APPDATAFOLDER">
+    <Component Id="cmpConfigFile" Guid="D3985A99-F1E2-42FA-85BD-7ADC1DD828F1" Directory="APPDATAFOLDER" NeverOverwrite="yes">
       <!-- NeverOverwrite preserves local changes on upgrade/repair. -->
       <File
         Id="filConfig"
         Source="$(var.SourceDir)\configs\config.yaml.template"
         Name="config.yaml"
-        KeyPath="yes"
-        NeverOverwrite="yes" />
+        KeyPath="yes" />
     </Component>
 
     <!-- Ensure runtime folders exist -->
@@ -121,4 +120,3 @@
     </Component>
   </Fragment>
 </Wix>
-
