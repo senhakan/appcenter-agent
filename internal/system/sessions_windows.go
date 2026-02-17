@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+// LoggedInSession represents a currently logged-in user session on the machine.
+// SessionType is expected to be "local" or "rdp".
+type LoggedInSession struct {
+	Username    string `json:"username"`
+	SessionType string `json:"session_type"`
+	LogonID     string `json:"logon_id,omitempty"`
+}
+
 type psSession struct {
 	Username  string `json:"Username"`
 	LogonID   string `json:"LogonId"`
@@ -88,4 +96,3 @@ func GetLoggedInSessions() []LoggedInSession {
 	}
 	return items
 }
-
