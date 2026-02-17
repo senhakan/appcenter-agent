@@ -67,7 +67,8 @@ type HeartbeatRequest struct {
 	AppsChanged   bool           `json:"apps_changed"`
 	InstalledApps []InstalledApp `json:"installed_apps"`
 	InventoryHash string         `json:"inventory_hash,omitempty"`
-	LoggedInSessions []LoggedInSession `json:"logged_in_sessions,omitempty"`
+	// Always send this field so the server can clear stale session data.
+	LoggedInSessions []LoggedInSession `json:"logged_in_sessions"`
 }
 
 type Command struct {

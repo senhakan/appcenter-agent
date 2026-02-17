@@ -106,15 +106,13 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 
 	// Logged-in sessions are optional; server handles missing field.
 	sessions := system.GetLoggedInSessions()
-	if len(sessions) > 0 {
-		req.LoggedInSessions = make([]api.LoggedInSession, 0, len(sessions))
-		for _, s := range sessions {
-			req.LoggedInSessions = append(req.LoggedInSessions, api.LoggedInSession{
-				Username:    s.Username,
-				SessionType: s.SessionType,
-				LogonID:     s.LogonID,
-			})
-		}
+	req.LoggedInSessions = make([]api.LoggedInSession, 0, len(sessions))
+	for _, s := range sessions {
+		req.LoggedInSessions = append(req.LoggedInSessions, api.LoggedInSession{
+			Username:    s.Username,
+			SessionType: s.SessionType,
+			LogonID:     s.LogonID,
+		})
 	}
 
 	resp, err := s.client.Heartbeat(ctx, s.cfg.Agent.UUID, s.cfg.Agent.SecretKey, req)

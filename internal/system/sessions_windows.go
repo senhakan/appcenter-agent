@@ -34,9 +34,8 @@ func GetLoggedInSessions() []LoggedInSession {
 		"$sessions = Get-CimInstance Win32_LogonSession | Where-Object { $_.LogonType -in 2,10 };",
 		"$out = @();",
 		"foreach($s in $sessions){",
-		"  $links = Get-CimAssociatedInstance -InputObject $s -Association Win32_LoggedOnUser;",
-		"  foreach($a in $links){",
-		"    $u = $a.Antecedent;",
+		"  $accounts = Get-CimAssociatedInstance -InputObject $s -Association Win32_LoggedOnUser;",
+		"  foreach($u in $accounts){",
 		"    if(-not $u){ continue }",
 		"    $name = $u.Name;",
 		"    $domain = $u.Domain;",
@@ -46,7 +45,7 @@ func GetLoggedInSessions() []LoggedInSession {
 		"    $out += [pscustomobject]@{ Username=$full; LogonId=[string]$s.LogonId; LogonType=[int]$s.LogonType };",
 		"  }",
 		"}",
-		"$out | Sort-Object Username -Unique | ConvertTo-Json -Compress",
+		"if($out.Count -eq 0){ '[]' } else { $out | Sort-Object Username -Unique | ConvertTo-Json -Compress }",
 	}, " ")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
