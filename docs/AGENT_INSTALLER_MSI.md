@@ -66,3 +66,8 @@ msiexec /x .\AppCenterAgent-<version>.msi /qn /norestart
   - Registry key: `HKLM:\Software\Microsoft\Windows\CurrentVersion\Run` (`AppCenterTray`)
 - Config:
   - `C:\ProgramData\AppCenter\config.yaml`
+
+## Notlar
+
+- MSI, varsayilan olarak `configs/config.yaml.template` dosyasini `C:\ProgramData\AppCenter\config.yaml` olarak yerlestirir.
+- Bu varsayilan dosyada `server.url` degeri test/template amacli olabilir. Service'in kurulumdan sonra otomatik calismasi icin ortamda erisilebilir gercek server adresi ile guncellenmelidir.

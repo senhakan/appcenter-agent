@@ -300,6 +300,28 @@ Not:
   - Onceki 32-bit MSI testinden kalan kayit/dosyalar nedeniyle ayni makinede hem `RUN64` hem `RUN32` gorulebildi.
   - Guncel x64 MSI icin hedef dogru anahtar:
     - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
+
+### MSI Temiz Sistem Simulasyonu (Ayni Test Makinesinde)
+
+- Test makinesi temizlendi:
+  - `AppCenterAgent` service stop/delete
+  - Eski MSI urun kayitlari uninstall (`x86` + `x64` onceki urun kodlari)
+  - `HKLM ... Run\AppCenterTray` hem 64-bit hem WOW6432Node temizligi
+  - `C:\Program Files\AppCenter`, `C:\Program Files (x86)\AppCenter`, `C:\ProgramData\AppCenter` temizligi
+- CI artifact ile tekrar test edildi (`appcenter-agent-msi`):
+  - Install: `exit=0`
+  - Uninstall: `exit=0`
+  - Reinstall: `exit=0`
+- Dogrulama (temiz dongu sonrasi):
+  - Binary path: `C:\Program Files\AppCenter\appcenter-service.exe`
+  - `PF32` kurulumu yok
+  - Run key 64-bit hive'da, WOW6432Node bos
+  - `config.yaml` olusuyor
+- Ek bulgu:
+  - Varsayilan `config.yaml` `server.url=http://127.0.0.1:8000` ile gelirse service bootstrap sirasinda cikabilir (`WIN32_EXIT_CODE=1`).
+  - `server.url` test ortami server adresine guncellenince service `Running` oldu ve:
+    - `appcenter-tray-cli.exe get_status` = `ok`
+    - `appcenter-tray-cli.exe get_store` = `ok`
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:
