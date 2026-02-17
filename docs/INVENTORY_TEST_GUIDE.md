@@ -87,3 +87,17 @@ Beklenen:
   - inventory tablo verisi gorunmeli
   - degisim gecmisi listesi dolmali
 
+## 6. MSIX / Microsoft Store Uygulamalari (NanaZip Ornegi)
+
+Not: NanaZip gibi Microsoft Store (MSIX/Appx) ile kurulan uygulamalar, klasik `Uninstall` registry kayitlarinda bulunmayabilir.
+Agent inventory taramasi Appx paketlerini de dahil eder (`Get-AppxPackage -AllUsers`).
+
+Hizli dogrulama:
+
+1. Windows'ta NanaZip Appx paketini kontrol et:
+
+```powershell
+Get-AppxPackage -AllUsers | Where-Object { $_.Name -match 'NanaZip' } | Select-Object Name, Version, Publisher
+```
+
+2. Server tarafinda inventory listesinde `NanaZip` gorunmeli.

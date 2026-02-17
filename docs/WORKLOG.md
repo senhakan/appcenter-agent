@@ -384,6 +384,14 @@ Canli Windows test (host: `10.6.20.172`):
   - `total=147` kayit goruldu.
 - Degisim gecmisi test rehberi eklendi:
   - `docs/INVENTORY_TEST_GUIDE.md`
+
+### Inventory: MSIX/Appx (Microsoft Store) Uygulamalari
+
+- NanaZip gibi Store (MSIX/Appx) ile gelen uygulamalar `HKLM/HKCU ...\\Uninstall` altinda gorunmez.
+- Inventory taramasina `Get-AppxPackage -AllUsers` ciktilari eklendi.
+- Dogrulama:
+  - Windows'ta `Get-AppxPackage -AllUsers | ? Name -match NanaZip`
+  - Server inventory listesinde `NanaZip` gorunmeli.
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:
