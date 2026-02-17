@@ -29,6 +29,11 @@ Detay kronoloji: `docs/WORKLOG.md`
   - `ssh apptest@10.6.20.172`
   - `scp <local-file> apptest@10.6.20.172:C:/Temp/`
 
+## Inventory Test Notu
+
+- Inventory/degisim gecmisi test adimlari icin:
+  - `docs/INVENTORY_TEST_GUIDE.md`
+
 ## MSI Nereden Alinacak? (CI Artifact)
 
 MSI GitHub Actions ile uretilir:

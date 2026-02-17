@@ -382,6 +382,8 @@ Canli Windows test (host: `10.6.20.172`):
 - Server API dogrulama:
   - `GET /api/v1/agents/54d2ad5c-5b66-477d-82da-e5a22ef6dc01/inventory`
   - `total=147` kayit goruldu.
+- Degisim gecmisi test rehberi eklendi:
+  - `docs/INVENTORY_TEST_GUIDE.md`
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

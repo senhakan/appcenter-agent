@@ -124,6 +124,7 @@ Pipeline adimlari:
 - Repo calisma talimatlari: `AGENTS.md`
 - Islem gecmisi: `docs/WORKLOG.md`
 - MSI test adimlari: `docs/WINDOWS_MSI_TEST_GUIDE.md`
+- Inventory test adimlari: `docs/INVENTORY_TEST_GUIDE.md`
 - Buradan devam notlari: `docs/CONTINUATION.md`
 
 ## MSI Kurulum Ornekleri
