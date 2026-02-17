@@ -49,6 +49,12 @@ type InstalledApp struct {
 	Version string `json:"version"`
 }
 
+type LoggedInSession struct {
+	Username    string `json:"username"`
+	SessionType string `json:"session_type"`
+	LogonID     string `json:"logon_id,omitempty"`
+}
+
 type HeartbeatRequest struct {
 	Hostname      string         `json:"hostname"`
 	IPAddress     string         `json:"ip_address"`
@@ -61,6 +67,7 @@ type HeartbeatRequest struct {
 	AppsChanged   bool           `json:"apps_changed"`
 	InstalledApps []InstalledApp `json:"installed_apps"`
 	InventoryHash string         `json:"inventory_hash,omitempty"`
+	LoggedInSessions []LoggedInSession `json:"logged_in_sessions,omitempty"`
 }
 
 type Command struct {
