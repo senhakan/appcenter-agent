@@ -20,6 +20,15 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
 
 Detay kronoloji: `docs/WORKLOG.md`
 
+## Windows Test Ortami
+
+- Host: `10.6.20.172`
+- SSH kullanici: `apptest`
+- SSH sifre: `1234asd!!!` (gecici/lab ortami)
+- Baglanti ornegi:
+  - `ssh apptest@10.6.20.172`
+  - `scp <local-file> apptest@10.6.20.172:C:/Temp/`
+
 ## MSI Nereden Alinacak? (CI Artifact)
 
 MSI GitHub Actions ile uretilir:
@@ -60,4 +69,3 @@ Kontrol listesi:
    - Server'da agent update upload et, heartbeat ile stage ettir, `auto_apply` ile helper'in replace+restart yaptigini dogrula
 
 MSI odakli ayrinti: `docs/AGENT_INSTALLER_MSI.md`
-

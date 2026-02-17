@@ -16,6 +16,7 @@ import (
 	"appcenter-agent/internal/downloader"
 	"appcenter-agent/internal/heartbeat"
 	"appcenter-agent/internal/installer"
+	"appcenter-agent/internal/inventory"
 	"appcenter-agent/internal/ipc"
 	"appcenter-agent/internal/queue"
 	"appcenter-agent/internal/system"
@@ -52,6 +53,10 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	pollResults := make(chan heartbeat.PollResult, 8)
 	serviceStarted := time.Now().UTC()
 
+	// Initialize inventory manager and perform initial scan.
+	invManager := inventory.NewManager(logger)
+	invManager.ForceScan()
+
 	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted))
 	if pipeErr != nil {
 		logger.Printf("named pipe server not started: %v", pipeErr)
@@ -60,7 +65,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		logger.Printf("named pipe server started: %s", ipc.PipeName)
 	}
 
-	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue)
+	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager)
 	go sender.Start(ctx)
 
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
@@ -105,6 +110,42 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			}
 			if err := updater.StageIfNeeded(ctx, *cfg, result.Config, logger); err != nil {
 				logger.Printf("self-update stage failed: %v", err)
+			}
+
+			// Update inventory scan interval from server config.
+			if result.Config != nil {
+				if v, ok := result.Config["inventory_scan_interval_min"]; ok {
+					if f, ok := v.(float64); ok {
+						invManager.SetScanInterval(int(f))
+					}
+				}
+			}
+
+			// Periodic inventory scan.
+			invManager.ScanIfNeeded()
+
+			// Submit inventory if server requests sync.
+			if result.InventorySyncRequired {
+				submitFn := func(sctx context.Context, payload inventory.SubmitRequest) (*inventory.SubmitResponse, error) {
+					raw, err := client.SubmitInventory(sctx, cfg.Agent.UUID, cfg.Agent.SecretKey, payload)
+					if err != nil {
+						return nil, err
+					}
+					resp := &inventory.SubmitResponse{
+						Status:  fmt.Sprintf("%v", raw["status"]),
+						Message: fmt.Sprintf("%v", raw["message"]),
+						Changes: make(map[string]int),
+					}
+					if ch, ok := raw["changes"].(map[string]any); ok {
+						for k, v := range ch {
+							if f, ok := v.(float64); ok {
+								resp.Changes[k] = int(f)
+							}
+						}
+					}
+					return resp, nil
+				}
+				invManager.SyncIfRequested(ctx, true, submitFn)
 			}
 
 			taskQueue.AddCommands(result.Commands)

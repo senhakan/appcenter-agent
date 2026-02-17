@@ -11,6 +11,7 @@ Windows istemcilerde uygulama kurulumunu merkezi AppCenter Server komutlariyla y
 - Faz 5 tamamlandi (Named Pipe IPC: get_status/get_store + tray client).
 - Faz 6 tamamlandi (Windows systray UI: durum, store refresh, install istegi).
 - Faz 7 tamamlandi (self-update staging, log rotation, error handling polish).
+- Inventory modulu eklendi (Windows yazilim tarama + hash tabanli sync tetikleme + server inventory submit).
 - GitHub Actions ile her push'ta test + Windows build calisiyor.
 
 ## Bu Repoda Olanlar

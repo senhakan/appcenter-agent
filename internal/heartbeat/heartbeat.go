@@ -15,10 +15,16 @@ type InstalledAppsProvider interface {
 	ConsumeAppsChanged() (bool, []api.InstalledApp)
 }
 
+// InventoryHashProvider returns the current inventory hash for inclusion in heartbeat.
+type InventoryHashProvider interface {
+	GetCurrentHash() string
+}
+
 type PollResult struct {
-	ServerTime time.Time
-	Config     map[string]any
-	Commands   []api.Command
+	ServerTime            time.Time
+	Config                map[string]any
+	Commands              []api.Command
+	InventorySyncRequired bool
 }
 
 type Sender struct {
@@ -27,6 +33,7 @@ type Sender struct {
 	logger            *log.Logger
 	resultsCh         chan<- PollResult
 	installedProvider InstalledAppsProvider
+	inventoryProvider InventoryHashProvider
 }
 
 func NewSender(
@@ -35,6 +42,7 @@ func NewSender(
 	logger *log.Logger,
 	resultsCh chan<- PollResult,
 	installedProvider InstalledAppsProvider,
+	inventoryProvider InventoryHashProvider,
 ) *Sender {
 	return &Sender{
 		client:            client,
@@ -42,6 +50,7 @@ func NewSender(
 		logger:            logger,
 		resultsCh:         resultsCh,
 		installedProvider: installedProvider,
+		inventoryProvider: inventoryProvider,
 	}
 }
 
@@ -91,6 +100,10 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 		InstalledApps: installedApps,
 	}
 
+	if s.inventoryProvider != nil {
+		req.InventoryHash = s.inventoryProvider.GetCurrentHash()
+	}
+
 	resp, err := s.client.Heartbeat(ctx, s.cfg.Agent.UUID, s.cfg.Agent.SecretKey, req)
 	if err != nil {
 		s.logger.Printf("heartbeat error: %v", err)
@@ -102,12 +115,23 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	if parsed, err := time.Parse(time.RFC3339, resp.ServerTime); err == nil {
 		serverTime = parsed.UTC()
 	}
+
+	inventorySyncRequired := false
+	if resp.Config != nil {
+		if v, ok := resp.Config["inventory_sync_required"]; ok {
+			if b, ok := v.(bool); ok {
+				inventorySyncRequired = b
+			}
+		}
+	}
+
 	if s.resultsCh != nil {
 		select {
 		case s.resultsCh <- PollResult{
-			ServerTime: serverTime,
-			Config:     resp.Config,
-			Commands:   resp.Commands,
+			ServerTime:            serverTime,
+			Config:                resp.Config,
+			Commands:              resp.Commands,
+			InventorySyncRequired: inventorySyncRequired,
 		}:
 		default:
 			s.logger.Printf("heartbeat result queue full, dropping %d command(s)", len(resp.Commands))

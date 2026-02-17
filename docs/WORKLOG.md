@@ -351,6 +351,37 @@ Not:
     - `HKLM\Software\AppCenter\Agent\Bootstrap\ServerURL` yazildi
     - `HKLM\Software\AppCenter\Agent\Bootstrap\SecretKey` yazildi
   - Service `Running`, tray CLI `get_status=ok`
+
+## 2026-02-17
+
+### Agent Inventory Modulu (Windows) - Entegrasyon ve Canli Test
+
+- Agent tarafinda inventory kodu eklendi:
+  - `internal/inventory/inventory.go`
+  - `internal/inventory/scanner_windows.go`
+  - `internal/inventory/scanner_nonwindows.go`
+- Heartbeat payload'ina inventory hash eklendi:
+  - `internal/api/client.go` -> `HeartbeatRequest.InventoryHash`
+  - `internal/heartbeat/heartbeat.go` -> `InventoryHashProvider`, `InventorySyncRequired`
+- Service loop inventory akisi:
+  - `cmd/service/core.go`
+  - startup'ta `ForceScan()`
+  - server config'ten `inventory_scan_interval_min` alinmasi
+  - `inventory_sync_required=true` durumunda `/api/v1/agent/inventory` submit
+
+Canli Windows test (host: `10.6.20.172`):
+
+- Inventory build'i ile service binary guncellendi.
+- Service start sonrasi log dogrulama:
+  - `inventory force scan: 147 items, hash=...`
+- Ilk durumda secret uyumsuzlugu nedeniyle `401 Unauthorized` goruldu.
+- Secret sifirlanip yeniden register sonrasi:
+  - `agent registered: 54d2ad5c-5b66-477d-82da-e5a22ef6dc01`
+  - `heartbeat ok: status=ok commands=0`
+  - `inventory submitted: Inventory updated (installed=0 removed=0 updated=0)`
+- Server API dogrulama:
+  - `GET /api/v1/agents/54d2ad5c-5b66-477d-82da-e5a22ef6dc01/inventory`
+  - `total=147` kayit goruldu.
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

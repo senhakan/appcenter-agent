@@ -60,6 +60,7 @@ type HeartbeatRequest struct {
 	CurrentStatus string         `json:"current_status"`
 	AppsChanged   bool           `json:"apps_changed"`
 	InstalledApps []InstalledApp `json:"installed_apps"`
+	InventoryHash string         `json:"inventory_hash,omitempty"`
 }
 
 type Command struct {
@@ -179,6 +180,19 @@ func (c *Client) GetStore(ctx context.Context, agentUUID, secret string) (*Store
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (c *Client) SubmitInventory(ctx context.Context, agentUUID, secret string, payload any) (map[string]any, error) {
+	headers := map[string]string{
+		"X-Agent-UUID":   agentUUID,
+		"X-Agent-Secret": secret,
+	}
+
+	var out map[string]any
+	if err := c.postJSON(ctx, "/api/v1/agent/inventory", payload, headers, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *Client) postJSON(ctx context.Context, path string, payload any, headers map[string]string, out any) error {
