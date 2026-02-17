@@ -39,6 +39,14 @@ func ScanInstalledSoftware() []SoftwareItem {
 			if err != nil {
 				continue
 			}
+
+			// Skip system components and updates (read before closing the key).
+			sysComp, _, _ := subKey.GetIntegerValue("SystemComponent")
+			if sysComp == 1 {
+				subKey.Close()
+				continue
+			}
+
 			item := readSoftwareItem(subKey)
 			subKey.Close()
 
@@ -52,15 +60,24 @@ func ScanInstalledSoftware() []SoftwareItem {
 			}
 			seen[dedup] = true
 
-			// Skip system components and updates
-			sysComp, _, _ := subKey.GetIntegerValue("SystemComponent")
-			if sysComp == 1 {
-				continue
-			}
-
 			items = append(items, item)
 		}
 	}
+
+	// Microsoft Store (MSIX/Appx) apps do not appear under Uninstall registry keys.
+	// Include them so apps like NanaZip are visible in inventory.
+	for _, item := range scanAppxPackagesAllUsers() {
+		if item.Name == "" {
+			continue
+		}
+		dedup := item.Name + "|" + item.Version
+		if seen[dedup] {
+			continue
+		}
+		seen[dedup] = true
+		items = append(items, item)
+	}
+
 	return items
 }
 
@@ -93,7 +110,7 @@ func readSoftwareItem(key registry.Key) SoftwareItem {
 	return SoftwareItem{
 		Name:            name,
 		Version:         version,
-		Publisher:        publisher,
+		Publisher:       publisher,
 		InstallDate:     installDate,
 		EstimatedSizeKB: sizeKB,
 		Architecture:    arch,
