@@ -107,6 +107,7 @@ Pipeline adimlari:
   - `pending_update.json`
 - Apply modu (opsiyonel):
   - `update.auto_apply=true` ise service, `pending_update.json` buldugunda `appcenter-update-helper.exe` ile kendini replace edip restart eder.
+  - MSI default: `update.auto_apply=true` (yeni kurulumlarda self-update otomatik apply olur).
 
 ## Tray Kullanimi
 

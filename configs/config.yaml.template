@@ -3,7 +3,7 @@ server:
   verify_ssl: false
 
 agent:
-  version: "0.1.4"
+  version: "0.1.5"
   uuid: ""
   secret_key: ""
 
@@ -19,7 +19,7 @@ install:
   enable_auto_cleanup: true
 
 update:
-  auto_apply: false
+  auto_apply: true
   service_name: "AppCenterAgent"
   helper_path: "C:\\Program Files\\AppCenter\\appcenter-update-helper.exe"
 
