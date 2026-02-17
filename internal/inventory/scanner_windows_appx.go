@@ -70,14 +70,48 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 }
 
 func shortenAppxName(pkgName string) string {
-	parts := strings.Split(pkgName, ".")
+	parts := strings.Split(strings.TrimSpace(pkgName), ".")
 	if len(parts) == 0 {
 		return pkgName
 	}
-	last := parts[len(parts)-1]
-	last = strings.TrimSpace(last)
-	if last == "" {
+
+	// If the package name ends with numeric components (e.g. Microsoft.WindowsAppRuntime.1.5),
+	// returning only the last segment would be misleading ("5"). Prefer the last non-numeric
+	// segment plus the numeric suffix: "WindowsAppRuntime 1.5".
+	isDigits := func(s string) bool {
+		if s == "" {
+			return false
+		}
+		for i := 0; i < len(s); i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Collect numeric tail.
+	tailStart := len(parts)
+	for tailStart > 0 && isDigits(parts[tailStart-1]) {
+		tailStart--
+	}
+	if tailStart == len(parts) {
+		// No numeric suffix; keep the last segment (e.g. NanaZip).
+		last := strings.TrimSpace(parts[len(parts)-1])
+		if last == "" {
+			return pkgName
+		}
+		return last
+	}
+
+	// Numeric suffix exists.
+	suffix := strings.Join(parts[tailStart:], ".")
+	base := ""
+	if tailStart > 0 {
+		base = strings.TrimSpace(parts[tailStart-1])
+	}
+	if base == "" || suffix == "" {
 		return pkgName
 	}
-	return last
+	return base + " " + suffix
 }
