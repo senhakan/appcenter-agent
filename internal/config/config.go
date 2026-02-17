@@ -11,6 +11,7 @@ type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Agent     AgentConfig     `yaml:"agent"`
 	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
+	SystemProfile SystemProfileConfig `yaml:"system_profile"`
 	Download  DownloadConfig  `yaml:"download"`
 	Install   InstallConfig   `yaml:"install"`
 	Update    UpdateConfig    `yaml:"update"`
@@ -31,6 +32,12 @@ type AgentConfig struct {
 
 type HeartbeatConfig struct {
 	IntervalSec int `yaml:"interval_sec"`
+}
+
+type SystemProfileConfig struct {
+	// ReportIntervalMin controls how often system profile (static-ish machine info)
+	// is sent to the server. It is intentionally not sent on every heartbeat.
+	ReportIntervalMin int `yaml:"report_interval_min"`
 }
 
 type DownloadConfig struct {
@@ -115,11 +122,17 @@ func (c *Config) Validate() error {
 	if c.Agent.Version == "" {
 		return errors.New("agent.version is required")
 	}
+	if c.SystemProfile.ReportIntervalMin < 0 {
+		return errors.New("system_profile.report_interval_min must be >= 0")
+	}
 	return nil
 }
 
 func (c *Config) ApplyDefaults() {
 	if c.Update.ServiceName == "" {
 		c.Update.ServiceName = "AppCenterAgent"
+	}
+	if c.SystemProfile.ReportIntervalMin == 0 {
+		c.SystemProfile.ReportIntervalMin = 720
 	}
 }

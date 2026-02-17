@@ -2,6 +2,9 @@ package heartbeat
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"log"
 	"os/user"
 	"time"
@@ -34,6 +37,10 @@ type Sender struct {
 	resultsCh         chan<- PollResult
 	installedProvider InstalledAppsProvider
 	inventoryProvider InventoryHashProvider
+
+	sysProfileStatePath string
+	sysProfileLastSent  time.Time
+	sysProfileLastHash  string
 }
 
 func NewSender(
@@ -44,6 +51,15 @@ func NewSender(
 	installedProvider InstalledAppsProvider,
 	inventoryProvider InventoryHashProvider,
 ) *Sender {
+	statePath := system.DefaultSystemProfileStatePath()
+	lastSent := time.Time{}
+	lastHash := ""
+	if st, err := system.LoadSystemProfileState(statePath); err == nil {
+		if t, ok := system.ParseUTC(st.LastSentAtUTC); ok {
+			lastSent = t
+		}
+		lastHash = st.LastHash
+	}
 	return &Sender{
 		client:            client,
 		cfg:               cfg,
@@ -51,6 +67,9 @@ func NewSender(
 		resultsCh:         resultsCh,
 		installedProvider: installedProvider,
 		inventoryProvider: inventoryProvider,
+		sysProfileStatePath: statePath,
+		sysProfileLastSent:  lastSent,
+		sysProfileLastHash:  lastHash,
 	}
 }
 
@@ -69,6 +88,70 @@ func (s *Sender) Start(ctx context.Context) {
 			s.sendOnce(ctx, false)
 		}
 	}
+}
+
+func hashSystemProfile(p system.SystemProfile) string {
+	b, _ := json.Marshal(p)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Sender) maybeAttachSystemProfile(req *api.HeartbeatRequest) {
+	intervalMin := s.cfg.SystemProfile.ReportIntervalMin
+	if intervalMin <= 0 {
+		return
+	}
+	now := time.Now().UTC()
+	if !s.sysProfileLastSent.IsZero() && now.Sub(s.sysProfileLastSent) < time.Duration(intervalMin)*time.Minute {
+		return
+	}
+
+	p, err := system.CollectSystemProfile()
+	if err != nil || p == nil {
+		return
+	}
+
+	// Convert to API struct.
+	apiDisks := make([]api.SystemDisk, 0, len(p.Disks))
+	for _, d := range p.Disks {
+		apiDisks = append(apiDisks, api.SystemDisk{
+			Index:  d.Index,
+			SizeGB: d.SizeGB,
+			Model:  d.Model,
+			BusType: d.BusType,
+		})
+	}
+	var virt *api.VirtualizationInfo
+	if p.Virtualization != nil {
+		virt = &api.VirtualizationInfo{
+			IsVirtual: p.Virtualization.IsVirtual,
+			Vendor:    p.Virtualization.Vendor,
+			Model:     p.Virtualization.Model,
+		}
+	}
+	req.SystemProfile = &api.SystemProfile{
+		OSFullName:         p.OSFullName,
+		OSVersion:          p.OSVersion,
+		BuildNumber:        p.BuildNumber,
+		Architecture:       p.Architecture,
+		Manufacturer:       p.Manufacturer,
+		Model:              p.Model,
+		CPUModel:           p.CPUModel,
+		CPUCoresPhysical:   p.CPUCoresPhysical,
+		CPUCoresLogical:    p.CPUCoresLogical,
+		TotalMemoryGB:      p.TotalMemoryGB,
+		DiskCount:          p.DiskCount,
+		Disks:              apiDisks,
+		Virtualization:     virt,
+	}
+
+	h := hashSystemProfile(*p)
+	s.sysProfileLastSent = now
+	s.sysProfileLastHash = h
+	_ = system.SaveSystemProfileState(s.sysProfileStatePath, system.SystemProfileState{
+		LastSentAtUTC: now.Format(time.RFC3339),
+		LastHash:      h,
+	})
 }
 
 func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
@@ -114,6 +197,8 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 			LogonID:     s.LogonID,
 		})
 	}
+
+	s.maybeAttachSystemProfile(&req)
 
 	resp, err := s.client.Heartbeat(ctx, s.cfg.Agent.UUID, s.cfg.Agent.SecretKey, req)
 	if err != nil {

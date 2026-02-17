@@ -3,12 +3,15 @@ server:
   verify_ssl: false
 
 agent:
-  version: "0.1.11"
+  version: "0.1.12"
   uuid: ""
   secret_key: ""
 
 heartbeat:
   interval_sec: 60
+
+system_profile:
+  report_interval_min: 720
 
 download:
   temp_dir: "C:\\ProgramData\\AppCenter\\downloads"

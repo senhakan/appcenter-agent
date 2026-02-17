@@ -55,6 +55,39 @@ type LoggedInSession struct {
 	LogonID     string `json:"logon_id,omitempty"`
 }
 
+type SystemDisk struct {
+	Index  int    `json:"index"`
+	SizeGB int    `json:"size_gb,omitempty"`
+	Model  string `json:"model,omitempty"`
+	BusType string `json:"bus_type,omitempty"`
+}
+
+type VirtualizationInfo struct {
+	IsVirtual bool   `json:"is_virtual"`
+	Vendor    string `json:"vendor,omitempty"`
+	Model     string `json:"model,omitempty"`
+}
+
+type SystemProfile struct {
+	OSFullName   string `json:"os_full_name,omitempty"`
+	OSVersion    string `json:"os_version,omitempty"`
+	BuildNumber  string `json:"build_number,omitempty"`
+	Architecture string `json:"architecture,omitempty"`
+
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+
+	CPUModel          string `json:"cpu_model,omitempty"`
+	CPUCoresPhysical  int    `json:"cpu_cores_physical,omitempty"`
+	CPUCoresLogical   int    `json:"cpu_cores_logical,omitempty"`
+	TotalMemoryGB     int    `json:"total_memory_gb,omitempty"`
+
+	DiskCount int          `json:"disk_count,omitempty"`
+	Disks     []SystemDisk `json:"disks,omitempty"`
+
+	Virtualization *VirtualizationInfo `json:"virtualization,omitempty"`
+}
+
 type HeartbeatRequest struct {
 	Hostname      string         `json:"hostname"`
 	IPAddress     string         `json:"ip_address"`
@@ -69,6 +102,7 @@ type HeartbeatRequest struct {
 	InventoryHash string         `json:"inventory_hash,omitempty"`
 	// Always send this field so the server can clear stale session data.
 	LoggedInSessions []LoggedInSession `json:"logged_in_sessions"`
+	SystemProfile    *SystemProfile    `json:"system_profile,omitempty"`
 }
 
 type Command struct {
