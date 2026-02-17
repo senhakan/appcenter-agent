@@ -4,7 +4,6 @@ package system
 
 import (
 	"context"
-	"encoding/json"
 	"os/exec"
 	"strings"
 	"time"
@@ -18,79 +17,66 @@ type LoggedInSession struct {
 	LogonID     string `json:"logon_id,omitempty"`
 }
 
-type psSession struct {
-	Username  string `json:"Username"`
-	LogonID   string `json:"LogonId"`
-	LogonType int    `json:"LogonType"`
-}
-
 func GetLoggedInSessions() []LoggedInSession {
-	// Prefer WMI/CIM over parsing localized CLI output.
-	// LogonType mapping (Windows):
-	// - 2  = Interactive (console/local)
-	// - 10 = RemoteInteractive (RDP)
-	ps := strings.Join([]string{
-		"$ErrorActionPreference='SilentlyContinue';",
-		"$sessions = Get-CimInstance Win32_LogonSession | Where-Object { $_.LogonType -in 2,10 };",
-		"$out = @();",
-		"foreach($s in $sessions){",
-		"  $accounts = Get-CimAssociatedInstance -InputObject $s -Association Win32_LoggedOnUser;",
-		"  foreach($u in $accounts){",
-		"    if(-not $u){ continue }",
-		"    $name = $u.Name;",
-		"    $domain = $u.Domain;",
-		"    if(-not $name){ continue }",
-		"    if($name -match '^(DWM-|UMFD-|SYSTEM|LOCAL SERVICE|NETWORK SERVICE)$'){ continue }",
-		"    $full = $name; if($domain){ $full = \"$domain\\$name\" }",
-		"    $out += [pscustomobject]@{ Username=$full; LogonId=[string]$s.LogonId; LogonType=[int]$s.LogonType };",
-		"  }",
-		"}",
-		"if($out.Count -eq 0){ '[]' } else { $out | Sort-Object Username -Unique | ConvertTo-Json -Compress }",
-	}, " ")
-
+	// query user (quser) reflects interactive terminal sessions and includes state
+	// (Active/Disc). This avoids "ghost" logon sessions that Win32_LogonSession may
+	// still report even when there is no current interactive session.
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps).Output()
+	out, err := exec.CommandContext(ctx, "cmd.exe", "/c", "query user").Output()
 	if err != nil || len(out) == 0 {
 		return nil
 	}
 
-	// ConvertTo-Json returns either an object or an array depending on count.
-	var many []psSession
-	if err := json.Unmarshal(out, &many); err != nil {
-		var one psSession
-		if err2 := json.Unmarshal(out, &one); err2 != nil {
-			return nil
+	lines := strings.Split(string(out), "\n")
+	items := make([]LoggedInSession, 0, 4)
+	seen := make(map[string]struct{}, 4)
+
+	isActive := func(state string) bool {
+		switch strings.ToLower(strings.TrimSpace(state)) {
+		case "active", "aktif", "etkin":
+			return true
+		default:
+			return false
 		}
-		many = []psSession{one}
 	}
 
-	seen := make(map[string]struct{}, len(many))
-	items := make([]LoggedInSession, 0, len(many))
-	for _, s := range many {
-		u := strings.TrimSpace(s.Username)
-		if u == "" {
+	for i, line := range lines {
+		line = strings.TrimSpace(strings.TrimRight(line, "\r"))
+		if line == "" {
 			continue
 		}
-		if _, ok := seen[u]; ok {
+		// Skip header line.
+		if i == 0 && strings.Contains(strings.ToLower(line), "username") {
 			continue
 		}
-		seen[u] = struct{}{}
+		line = strings.TrimLeft(line, ">")
+		fields := strings.Fields(line)
+		// Expected (at least): USERNAME SESSIONNAME ID STATE ...
+		if len(fields) < 4 {
+			continue
+		}
 
-		st := ""
-		switch s.LogonType {
-		case 2:
-			st = "local"
-		case 10:
-			st = "rdp"
-		default:
+		username := fields[0]
+		sessionName := fields[1]
+		state := fields[3]
+		if username == "" || !isActive(state) {
 			continue
 		}
+		if _, ok := seen[username]; ok {
+			continue
+		}
+		seen[username] = struct{}{}
+
+		sType := "local"
+		if strings.HasPrefix(strings.ToLower(sessionName), "rdp-tcp") {
+			sType = "rdp"
+		}
+
 		items = append(items, LoggedInSession{
-			Username:    u,
-			SessionType: st,
-			LogonID:     strings.TrimSpace(s.LogonID),
+			Username:    username,
+			SessionType: sType,
 		})
 	}
 	return items
