@@ -413,6 +413,23 @@ Doğrulama:
 - `go test ./...` başarılı
 - `GOOS=windows GOARCH=amd64 go build ...` başarılı
 
+### Session Reporting (Login Olan Kullanici + local/RDP)
+
+- Heartbeat payload'ina login olan kullanici session listesi eklendi:
+  - Field: `logged_in_sessions: [{ username, session_type, logon_id? }]`
+  - `session_type`: `local` veya `rdp`
+- Windows tespiti:
+  - PowerShell CIM/WMI ile `Win32_LogonSession` + `Win32_LoggedOnUser` asosiasyonu kullanilir.
+  - Lokalize output parse edilmez (quser vb. yok).
+- Server tarafinda persist + UI:
+  - Heartbeat ile gelen liste server'da agents tablosuna JSON olarak yazilir.
+  - Agent detail ekraninda goruntulenir.
+- Canli test:
+  - Test host: `10.6.20.172`
+  - Agent self-update ile `0.1.9`'a guncellendi.
+  - Server API dogrulama:
+    - `GET /api/v1/agents/<uuid>` -> `logged_in_sessions` dolu geldi.
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

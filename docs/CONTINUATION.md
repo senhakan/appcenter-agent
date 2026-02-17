@@ -16,7 +16,8 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
   - Update staging yapilir (`pending_update.json`)
   - `update.auto_apply=true` ise `appcenter-update-helper.exe` ile staged update apply + service restart yapilir
 - Session reporting:
-  - Heartbeat payload'ina login olan kullanicilar (local/RDP) eklenecek, agent detail ekraninda goruntulenecek
+  - Heartbeat payload'ina login olan kullanicilar (local/RDP) eklendi: `logged_in_sessions`
+  - Server agent detail ekraninda goruntulenir (server `logged_in_sessions_json` olarak persist eder)
 - MSI exit code uyumlulugu:
   - `3010` (reboot required) ve `1641` (reboot initiated) agent tarafinda basari sayilir
 
