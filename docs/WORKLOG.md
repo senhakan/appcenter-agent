@@ -322,6 +322,25 @@ Not:
   - `server.url` test ortami server adresine guncellenince service `Running` oldu ve:
     - `appcenter-tray-cli.exe get_status` = `ok`
     - `appcenter-tray-cli.exe get_store` = `ok`
+
+### MSI Parametreleri + Wizard (Tamamlandi)
+
+- Hedef:
+  - Kurulumda `server.url` ve `secret_key` degerleri MSI parametresi olarak verilebilsin.
+  - Ayni degerler etkilesimli wizard ile de alinabilsin.
+- Uygulama:
+  - WiX public properties:
+    - `SERVER_URL`
+    - `SECRET_KEY` (Hidden)
+  - MSI bu degerleri registry'ye yazar:
+    - `HKLM\Software\AppCenter\Agent\Bootstrap\ServerURL`
+    - `HKLM\Software\AppCenter\Agent\Bootstrap\SecretKey`
+  - Agent config load sirasinda runtime override uygular:
+    - Env: `APPCENTER_SERVER_URL`, `APPCENTER_SECRET_KEY`
+    - Windows registry bootstrap key'leri
+- Wizard:
+  - `build/install-wizard.ps1`
+  - URL ve secret alir, MSI'i parametreli calistirir.
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

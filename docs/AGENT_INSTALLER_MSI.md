@@ -23,6 +23,13 @@ Bu dokuman, AppCenter Agent'in Windows client'lara MSI ile dagitimi icin uretile
   - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
 - Tek dosya dagitim:
   - WiX `MediaTemplate EmbedCab="yes"` ile MSI icine cabinet gomulur.
+- Kurulum parametreleri:
+  - `SERVER_URL` (opsiyonel)
+  - `SECRET_KEY` (opsiyonel)
+  - Girilen degerler `HKLM\Software\AppCenter\Agent\Bootstrap` altina yazilir.
+  - Agent acilisinda runtime override uygulanir:
+    - `server.url <- ServerURL`
+    - `agent.secret_key <- SecretKey`
 
 ## MSI Build (CI)
 
@@ -52,10 +59,22 @@ Silent install:
 msiexec /i .\AppCenterAgent-<version>.msi /qn /norestart
 ```
 
+Silent install (parametreli):
+
+```powershell
+msiexec /i .\AppCenterAgent-<version>.msi SERVER_URL="http://10.6.100.170:8000" SECRET_KEY="..." /qn /norestart
+```
+
 Silent uninstall:
 
 ```powershell
 msiexec /x .\AppCenterAgent-<version>.msi /qn /norestart
+```
+
+Wizard script (etkilesimli):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\AppCenterAgent-<version>.msi
 ```
 
 ## Dogrulama

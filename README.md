@@ -59,6 +59,10 @@ CI `build-windows-msi` job'i ile agent icin MSI uretilir. MSI su islemleri yapar
 - `C:\ProgramData\AppCenter\config.yaml` config dosyasini ilk kez yerlestirir (upgrade'de overwrite etmez)
 - Tray uygulamasini tum kullanicilar icin logon'da baslatmak uzere kayit ekler:
   - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
+- Kurulum parametreleri:
+  - `SERVER_URL` (opsiyonel)
+  - `SECRET_KEY` (opsiyonel)
+  - Bu degerler Windows registry'de `HKLM\Software\AppCenter\Agent\Bootstrap` altina yazilir ve agent acilisinda config'e runtime override olarak uygulanir.
 
 ## Konfigurasyon
 
@@ -120,6 +124,20 @@ Pipeline adimlari:
 - Islem gecmisi: `docs/WORKLOG.md`
 - MSI test adimlari: `docs/WINDOWS_MSI_TEST_GUIDE.md`
 - Buradan devam notlari: `docs/CONTINUATION.md`
+
+## MSI Kurulum Ornekleri
+
+Silent / otomatik kurulum:
+
+```powershell
+msiexec /i .\AppCenterAgent-<version>.msi SERVER_URL="http://10.6.100.170:8000" SECRET_KEY="..." /qn /norestart
+```
+
+Wizard script (etkilesimli):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\build\AppCenterAgent-<version>.msi
+```
 
 ## Sonraki Asama
 

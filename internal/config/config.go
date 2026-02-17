@@ -75,6 +75,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	cfg.ApplyDefaults()
+	cfg.ApplyRuntimeOverrides()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

@@ -21,6 +21,10 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of AppCenter Agent is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- Public MSI properties for unattended/bootstrap installation -->
+    <Property Id="SERVER_URL" Secure="yes" />
+    <Property Id="SECRET_KEY" Secure="yes" Hidden="yes" />
+
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentRef Id="cmpServiceExe" />
       <ComponentRef Id="cmpTrayExe" />
@@ -30,6 +34,8 @@
       <ComponentRef Id="cmpConfigFile" />
       <ComponentRef Id="cmpDownloadsDir" />
       <ComponentRef Id="cmpLogsDir" />
+      <ComponentRef Id="cmpBootstrapServerURL" />
+      <ComponentRef Id="cmpBootstrapSecretKey" />
     </Feature>
   </Product>
 
@@ -117,6 +123,29 @@
       <CreateFolder />
       <RemoveFolder Id="rmLogsDir" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\AppCenter\Agent" Name="LogsDir" Type="string" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Optional bootstrap overrides from MSI properties -->
+    <Component Id="cmpBootstrapServerURL" Guid="7D3D8D68-20B3-4AD1-8B54-2D6A1A4EAAE7" Directory="INSTALLFOLDER" Win64="yes">
+      <Condition>SERVER_URL &lt;&gt; ""</Condition>
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\AppCenter\Agent\Bootstrap"
+        Name="ServerURL"
+        Type="string"
+        Value="[SERVER_URL]"
+        KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpBootstrapSecretKey" Guid="4E4A43ED-D0F8-41A2-94D8-D38F34391E2A" Directory="INSTALLFOLDER" Win64="yes">
+      <Condition>SECRET_KEY &lt;&gt; ""</Condition>
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\AppCenter\Agent\Bootstrap"
+        Name="SecretKey"
+        Type="string"
+        Value="[SECRET_KEY]"
+        KeyPath="yes" />
     </Component>
   </Fragment>
 </Wix>
