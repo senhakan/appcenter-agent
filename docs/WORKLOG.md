@@ -283,6 +283,23 @@ Not:
 - Beklenen sonuc:
   - Gercek hata durumunda CI fail olur (false-positive yok)
   - Basarili run'da `build/*.msi` artifact olarak yuklenir.
+ - GitHub Actions test sonucu:
+   - `appcenter-agent-msi` artifact'i olusuyor ve boyut beklenen seviyede (~13MB).
+   - PAT ile artifact indirme dogrulandi.
+
+### MSI Remote Smoke (Windows SSH)
+
+- Test makinesine CI artifact MSI kopyalandi ve silent install calistirildi:
+  - `msiexec /i ... /qn /norestart`
+  - sonuc: `MSI_EXIT=0`
+- Service ve dosya dogrulama:
+  - `AppCenterAgent` service running
+  - `C:\Program Files\AppCenter\appcenter-service.exe` mevcut
+  - `C:\ProgramData\AppCenter\config.yaml` mevcut
+- Onemli bulgu:
+  - Onceki 32-bit MSI testinden kalan kayit/dosyalar nedeniyle ayni makinede hem `RUN64` hem `RUN32` gorulebildi.
+  - Guncel x64 MSI icin hedef dogru anahtar:
+    - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

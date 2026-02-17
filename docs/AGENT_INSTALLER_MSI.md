@@ -4,6 +4,7 @@ Bu dokuman, AppCenter Agent'in Windows client'lara MSI ile dagitimi icin uretile
 
 ## MSI Neleri Kurar?
 
+- Paket tipi: `x64` (per-machine)
 - Binary'ler:
   - `C:\Program Files\AppCenter\appcenter-service.exe`
   - `C:\Program Files\AppCenter\appcenter-tray.exe`
@@ -20,6 +21,8 @@ Bu dokuman, AppCenter Agent'in Windows client'lara MSI ile dagitimi icin uretile
   - `C:\ProgramData\AppCenter\logs`
 - Tray autostart (all users):
   - `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\AppCenterTray`
+- Tek dosya dagitim:
+  - WiX `MediaTemplate EmbedCab="yes"` ile MSI icine cabinet gomulur.
 
 ## MSI Build (CI)
 
@@ -63,4 +66,3 @@ msiexec /x .\AppCenterAgent-<version>.msi /qn /norestart
   - Registry key: `HKLM:\Software\Microsoft\Windows\CurrentVersion\Run` (`AppCenterTray`)
 - Config:
   - `C:\ProgramData\AppCenter\config.yaml`
-
