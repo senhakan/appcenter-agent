@@ -430,6 +430,24 @@ Doğrulama:
   - Server API dogrulama:
     - `GET /api/v1/agents/<uuid>` -> `logged_in_sessions` dolu geldi.
 
+### System Profile Reporting (OS + Donanim + Virtualization) + Sistem Gecmisi
+
+- Statik bilgiler periyodik gonderim:
+  - Heartbeat alanı: `system_profile`
+  - Siklik: `system_profile.report_interval_min` (default: 720 dk)
+- Windows toplama (best-effort):
+  - OS: `Win32_OperatingSystem` (Caption/Version/Build/Architecture)
+  - Bilgisayar: `Win32_ComputerSystem` (Manufacturer/Model/TotalPhysicalMemory)
+  - CPU: `Win32_Processor` (Name/Cores/Logical)
+  - Disk: `Win32_DiskDrive` + `Get-Disk` (Model/Size/BusType)
+  - Virtualization: Manufacturer+Model heuristic
+- Canli dogrulama:
+  - Test host: `10.6.20.172`
+  - Agent self-update ile `0.1.12`'ye guncellendi.
+  - Server API:
+    - `GET /api/v1/agents/<uuid>` -> `system_profile` dolu geldi.
+    - `GET /api/v1/agents/<uuid>/system/history` -> `total>=1`, ilk kayit `changed_fields=['initial']`.
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:

@@ -18,6 +18,9 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
 - Session reporting:
   - Heartbeat payload'ina login olan kullanicilar (local/RDP) eklendi: `logged_in_sessions`
   - Server agent detail ekraninda goruntulenir (server `logged_in_sessions_json` olarak persist eder)
+- System profile reporting:
+  - OS/donanim/virtualization profili periyodik olarak heartbeat ile gonderilir: `system_profile`
+  - Siklik: `system_profile.report_interval_min` (default: 720 dk)
 - MSI exit code uyumlulugu:
   - `3010` (reboot required) ve `1641` (reboot initiated) agent tarafinda basari sayilir
 
