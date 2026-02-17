@@ -1,5 +1,8 @@
 param(
-  [string]$MsiPath = ""
+  [string]$MsiPath = "",
+  [string]$ServerUrl = "",
+  [string]$SecretKey = "",
+  [switch]$Silent
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,12 +38,18 @@ function Read-SecretPlain {
 $msi = Resolve-MsiPath -InputPath $MsiPath
 Write-Host "MSI: $msi"
 
-$serverUrl = Read-Host -Prompt "AppCenter Server URL (example: http://10.6.100.170:8000)"
+$serverUrl = $ServerUrl
+if (-not $serverUrl) {
+  $serverUrl = Read-Host -Prompt "AppCenter Server URL (example: http://10.6.100.170:8000)"
+}
 if (-not $serverUrl) {
   throw "Server URL is required."
 }
 
-$secretKey = Read-SecretPlain -Prompt "Agent Secret Key (optional; empty to auto-register)"
+$secretKey = $SecretKey
+if (-not $secretKey) {
+  $secretKey = Read-SecretPlain -Prompt "Agent Secret Key (optional; empty to auto-register)"
+}
 
 $args = @(
   "/i", "`"$msi`"",
@@ -51,10 +60,14 @@ if ($secretKey) {
   $args += "SECRET_KEY=$secretKey"
 }
 
-$args += @("/qb", "/norestart")
+if ($Silent) {
+  $args += "/qn"
+} else {
+  $args += "/qb"
+}
+$args += "/norestart"
 
 Write-Host "Starting MSI install..."
 $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $args -Wait -PassThru
 Write-Host "MSI exit code: $($p.ExitCode)"
 exit $p.ExitCode
-

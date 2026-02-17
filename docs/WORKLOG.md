@@ -341,6 +341,16 @@ Not:
 - Wizard:
   - `build/install-wizard.ps1`
   - URL ve secret alir, MSI'i parametreli calistirir.
+  - Opsiyonel non-interactive parametreler:
+    - `-ServerUrl`
+    - `-SecretKey`
+    - `-Silent`
+- Remote test sonucu:
+  - `msiexec /i ... SERVER_URL=... SECRET_KEY=... /qn` ile kurulum `exit=0`
+  - Registry dogrulama:
+    - `HKLM\Software\AppCenter\Agent\Bootstrap\ServerURL` yazildi
+    - `HKLM\Software\AppCenter\Agent\Bootstrap\SecretKey` yazildi
+  - Service `Running`, tray CLI `get_status=ok`
   - heartbeat `config` alanindan update bilgisi alinir
   - update paketi indirilir + hash dogrulanir + `pending_update.json` yazilir
 - Log rotation:

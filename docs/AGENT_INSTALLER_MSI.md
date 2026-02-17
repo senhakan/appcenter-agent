@@ -77,6 +77,12 @@ Wizard script (etkilesimli):
 powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\AppCenterAgent-<version>.msi
 ```
 
+Wizard script (parametreli):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\AppCenterAgent-<version>.msi -ServerUrl "http://10.6.100.170:8000" -SecretKey "..." -Silent
+```
+
 ## Dogrulama
 
 - Service:

@@ -139,6 +139,12 @@ Wizard script (etkilesimli):
 powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\build\AppCenterAgent-<version>.msi
 ```
 
+Wizard script (parametreli / otomasyon):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build\install-wizard.ps1 -MsiPath .\build\AppCenterAgent-<version>.msi -ServerUrl "http://10.6.100.170:8000" -SecretKey "..." -Silent
+```
+
 ## Sonraki Asama
 
 - `install_from_store` aksiyonunu server-side deployment akisiyla tamamlamak
