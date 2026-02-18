@@ -27,6 +27,12 @@ import (
 const serviceName = "AppCenterAgent"
 
 func runAgent(ctx context.Context, cfgPath string) error {
+	// MSI upgrades/uninstalls and manual tampering can leave config.yaml missing.
+	// The service should be able to recover by re-creating a sane default config.
+	if err := config.EnsureExists(cfgPath); err != nil {
+		return fmt.Errorf("failed to ensure config exists: %w", err)
+	}
+
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -44,7 +50,10 @@ func runAgent(ctx context.Context, cfgPath string) error {
 
 	client := api.NewClient(cfg.Server)
 	if err := bootstrapAgent(client, cfg, logger); err != nil {
-		return fmt.Errorf("bootstrap failed: %w", err)
+		// Do not fail service start just because server is unreachable or registration fails.
+		// If we exit here, Windows SCM shows "Error 1: Incorrect function" which is misleading.
+		// Keep the agent running and let heartbeat retry; tray can show orange (server offline).
+		logger.Printf("bootstrap warning (service will continue): %v", err)
 	}
 
 	serviceExe, _ := os.Executable()
@@ -87,7 +96,14 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	}
 
 	executeFn := func(ctx context.Context, cmd api.Command) (queue.ExecutionResult, error) {
-		return executeCommand(ctx, *cfg, cmd)
+		result, err := executeCommand(ctx, *cfg, cmd)
+		if err == nil {
+			// Rescan installed software immediately after a successful
+			// installation so the inventory reflects the change before
+			// the next scheduled scan interval.
+			invManager.ForceScan()
+		}
+		return result, err
 	}
 
 	logger.Println("service loop started")

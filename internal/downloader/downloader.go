@@ -15,6 +15,7 @@ import (
 )
 
 type limitedReader struct {
+	ctx     context.Context
 	reader  io.Reader
 	limiter *rate.Limiter
 }
@@ -22,7 +23,7 @@ type limitedReader struct {
 func (r *limitedReader) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
 	if n > 0 {
-		if waitErr := r.limiter.WaitN(context.Background(), n); waitErr != nil {
+		if waitErr := r.limiter.WaitN(r.ctx, n); waitErr != nil {
 			return 0, waitErr
 		}
 	}
@@ -92,6 +93,7 @@ func DownloadFileWithMeta(
 
 	limiter := rate.NewLimiter(rate.Limit(limitKBps*1024), limitKBps*1024)
 	lr := &limitedReader{
+		ctx:     ctx,
 		reader:  resp.Body,
 		limiter: limiter,
 	}

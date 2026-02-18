@@ -251,7 +251,9 @@ func isWithinWorkHours(nowUTC time.Time, startHHMM, endHHMM string) bool {
 	current := nowUTC.UTC().Hour()*60 + nowUTC.UTC().Minute()
 
 	if startMinutes <= endMinutes {
-		return current >= startMinutes && current <= endMinutes
+		// Use exclusive upper bound: a task starting at exactly endMinutes
+		// (e.g. 18:00) would run but not finish within work hours.
+		return current >= startMinutes && current < endMinutes
 	}
 	return current >= startMinutes || current <= endMinutes
 }

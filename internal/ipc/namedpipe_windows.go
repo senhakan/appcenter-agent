@@ -19,7 +19,10 @@ type pipeServer struct {
 
 func StartPipeServer(handler Handler) (Server, error) {
 	config := &winio.PipeConfig{
-		SecurityDescriptor: "D:P(A;;GA;;;WD)",
+		// Allow SYSTEM (SY) and built-in Administrators (BA) only.
+		// WD (Everyone) was too permissive and allowed any user to send
+		// install commands to the SYSTEM service.
+		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)",
 		MessageMode:        true,
 		InputBufferSize:    65536,
 		OutputBufferSize:   65536,

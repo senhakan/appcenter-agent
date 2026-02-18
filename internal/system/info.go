@@ -15,15 +15,29 @@ type HostInfo struct {
 	DiskFreeGB int
 }
 
+// hostExtras holds platform-specific hardware details collected by
+// collectHostExtras(), which is implemented per-OS in info_windows.go /
+// info_nonwindows.go.
+type hostExtras struct {
+	CPUModel   string
+	RAMGB      int
+	DiskFreeGB int
+}
+
 func CollectHostInfo() HostInfo {
 	hostname, _ := os.Hostname()
+	extras := collectHostExtras()
+	cpuModel := extras.CPUModel
+	if cpuModel == "" {
+		cpuModel = runtime.GOARCH
+	}
 	return HostInfo{
 		Hostname:   hostname,
 		IPAddress:  firstIPv4(),
 		OSVersion:  runtime.GOOS + "/" + runtime.GOARCH,
-		CPUModel:   runtime.GOARCH,
-		RAMGB:      0,
-		DiskFreeGB: 0,
+		CPUModel:   cpuModel,
+		RAMGB:      extras.RAMGB,
+		DiskFreeGB: extras.DiskFreeGB,
 	}
 }
 
