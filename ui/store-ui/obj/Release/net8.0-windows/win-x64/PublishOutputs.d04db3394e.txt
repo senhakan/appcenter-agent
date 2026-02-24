@@ -1,0 +1,7 @@
+/tmp/ac_msi_test/store-ui-build-webview/appcenter-store-ui.pdb
+/tmp/ac_msi_test/store-ui-build-webview/runtimes/win-x64/native/WebView2Loader.dll
+/tmp/ac_msi_test/store-ui-build-webview/WebView2Loader.dll
+/tmp/ac_msi_test/store-ui-build-webview/Microsoft.Web.WebView2.Core.xml
+/tmp/ac_msi_test/store-ui-build-webview/Microsoft.Web.WebView2.WinForms.xml
+/tmp/ac_msi_test/store-ui-build-webview/Microsoft.Web.WebView2.Wpf.xml
+/tmp/ac_msi_test/store-ui-build-webview/appcenter-store-ui.exe

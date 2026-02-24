@@ -7,5 +7,3 @@ build/*.ico
 build/config.yaml
 .vscode/
 .idea/
-ui/store-ui/bin/
-ui/store-ui/obj/

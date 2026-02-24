@@ -1,0 +1,13 @@
+/tmp/ac_patch2/store-ui/appcenter-store-ui.exe
+/tmp/ac_patch2/store-ui/runtimes/win-x64/native/WebView2Loader.dll
+/tmp/ac_patch2/store-ui/appcenter-store-ui.dll
+/tmp/ac_patch2/store-ui/appcenter-store-ui.deps.json
+/tmp/ac_patch2/store-ui/appcenter-store-ui.runtimeconfig.json
+/tmp/ac_patch2/store-ui/appcenter-store-ui.pdb
+/tmp/ac_patch2/store-ui/WebView2Loader.dll
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.Core.dll
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.WinForms.dll
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.Wpf.dll
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.Core.xml
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.WinForms.xml
+/tmp/ac_patch2/store-ui/Microsoft.Web.WebView2.Wpf.xml

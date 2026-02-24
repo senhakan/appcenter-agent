@@ -1,0 +1,2 @@
+/tmp/ac_msi_test/store-ui-build/appcenter-store-ui.pdb
+/tmp/ac_msi_test/store-ui-build/appcenter-store-ui.exe
