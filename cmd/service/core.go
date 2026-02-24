@@ -58,6 +58,8 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	}
 
 	serviceExe, _ := os.Executable()
+	traySup := newTraySupervisor(serviceExe, logger)
+	storeTrayEnabled := false
 
 	taskQueue := queue.NewTaskQueue(3)
 	pollResults := make(chan heartbeat.PollResult, 8)
@@ -148,6 +150,22 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				if v, ok := result.Config["inventory_scan_interval_min"]; ok {
 					if f, ok := v.(float64); ok {
 						invManager.SetScanInterval(int(f))
+					}
+				}
+				if v, ok := result.Config["store_tray_enabled"]; ok {
+					if b, ok := v.(bool); ok {
+						// Keep enforcing desired tray state on every heartbeat so
+						// unexpected tray exits are healed automatically.
+						if b {
+							traySup.SetEnabled(true)
+							if !storeTrayEnabled {
+								logger.Printf("tray supervisor: store_tray_enabled=true")
+							}
+						} else if storeTrayEnabled {
+							traySup.SetEnabled(false)
+							logger.Printf("tray supervisor: store_tray_enabled=false")
+						}
+						storeTrayEnabled = b
 					}
 				}
 			}
