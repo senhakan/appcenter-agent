@@ -23,11 +23,18 @@ type InventoryHashProvider interface {
 	GetCurrentHash() string
 }
 
+// RemoteSupportProvider returns current remote support runtime status.
+type RemoteSupportProvider interface {
+	CurrentRemoteSupportStatus() *api.RemoteSupportStatus
+}
+
 type PollResult struct {
 	ServerTime            time.Time
 	Config                map[string]any
 	Commands              []api.Command
 	InventorySyncRequired bool
+	RemoteSupportRequest  *api.RemoteSupportRequest
+	RemoteSupportEnd      *api.RemoteSupportEnd
 }
 
 type Sender struct {
@@ -37,6 +44,7 @@ type Sender struct {
 	resultsCh         chan<- PollResult
 	installedProvider InstalledAppsProvider
 	inventoryProvider InventoryHashProvider
+	remoteProvider    RemoteSupportProvider
 
 	sysProfileStatePath string
 	sysProfileLastSent  time.Time
@@ -50,6 +58,7 @@ func NewSender(
 	resultsCh chan<- PollResult,
 	installedProvider InstalledAppsProvider,
 	inventoryProvider InventoryHashProvider,
+	remoteProvider RemoteSupportProvider,
 ) *Sender {
 	statePath := system.DefaultSystemProfileStatePath()
 	lastSent := time.Time{}
@@ -61,12 +70,13 @@ func NewSender(
 		lastHash = st.LastHash
 	}
 	return &Sender{
-		client:            client,
-		cfg:               cfg,
-		logger:            logger,
-		resultsCh:         resultsCh,
-		installedProvider: installedProvider,
-		inventoryProvider: inventoryProvider,
+		client:              client,
+		cfg:                 cfg,
+		logger:              logger,
+		resultsCh:           resultsCh,
+		installedProvider:   installedProvider,
+		inventoryProvider:   inventoryProvider,
+		remoteProvider:      remoteProvider,
 		sysProfileStatePath: statePath,
 		sysProfileLastSent:  lastSent,
 		sysProfileLastHash:  lastHash,
@@ -115,9 +125,9 @@ func (s *Sender) maybeAttachSystemProfile(req *api.HeartbeatRequest) {
 	apiDisks := make([]api.SystemDisk, 0, len(p.Disks))
 	for _, d := range p.Disks {
 		apiDisks = append(apiDisks, api.SystemDisk{
-			Index:  d.Index,
-			SizeGB: d.SizeGB,
-			Model:  d.Model,
+			Index:   d.Index,
+			SizeGB:  d.SizeGB,
+			Model:   d.Model,
 			BusType: d.BusType,
 		})
 	}
@@ -130,19 +140,19 @@ func (s *Sender) maybeAttachSystemProfile(req *api.HeartbeatRequest) {
 		}
 	}
 	req.SystemProfile = &api.SystemProfile{
-		OSFullName:         p.OSFullName,
-		OSVersion:          p.OSVersion,
-		BuildNumber:        p.BuildNumber,
-		Architecture:       p.Architecture,
-		Manufacturer:       p.Manufacturer,
-		Model:              p.Model,
-		CPUModel:           p.CPUModel,
-		CPUCoresPhysical:   p.CPUCoresPhysical,
-		CPUCoresLogical:    p.CPUCoresLogical,
-		TotalMemoryGB:      p.TotalMemoryGB,
-		DiskCount:          p.DiskCount,
-		Disks:              apiDisks,
-		Virtualization:     virt,
+		OSFullName:       p.OSFullName,
+		OSVersion:        p.OSVersion,
+		BuildNumber:      p.BuildNumber,
+		Architecture:     p.Architecture,
+		Manufacturer:     p.Manufacturer,
+		Model:            p.Model,
+		CPUModel:         p.CPUModel,
+		CPUCoresPhysical: p.CPUCoresPhysical,
+		CPUCoresLogical:  p.CPUCoresLogical,
+		TotalMemoryGB:    p.TotalMemoryGB,
+		DiskCount:        p.DiskCount,
+		Disks:            apiDisks,
+		Virtualization:   virt,
 	}
 
 	h := hashSystemProfile(*p)
@@ -199,6 +209,9 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	}
 
 	s.maybeAttachSystemProfile(&req)
+	if s.remoteProvider != nil {
+		req.RemoteSupport = s.remoteProvider.CurrentRemoteSupportStatus()
+	}
 
 	resp, err := s.client.Heartbeat(ctx, s.cfg.Agent.UUID, s.cfg.Agent.SecretKey, req)
 	if err != nil {
@@ -228,6 +241,8 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 			Config:                resp.Config,
 			Commands:              resp.Commands,
 			InventorySyncRequired: inventorySyncRequired,
+			RemoteSupportRequest:  resp.RemoteSupportRequest,
+			RemoteSupportEnd:      resp.RemoteSupportEnd,
 		}:
 		default:
 			s.logger.Printf("heartbeat result queue full, dropping %d command(s)", len(resp.Commands))

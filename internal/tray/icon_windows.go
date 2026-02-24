@@ -3,13 +3,20 @@
 package tray
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"sync"
 )
 
 var (
 	iconOnce sync.Once
 	iconData []byte
+
+	connOnce     sync.Once
+	iconGreen []byte
+	iconOrange []byte
+	iconRed   []byte
 )
 
 func appIconBytes() []byte {
@@ -20,6 +27,142 @@ func appIconBytes() []byte {
 		}
 	})
 	return iconData
+}
+
+func connectedIconBytes() []byte {
+	connOnce.Do(initConnectionIcons)
+	return iconGreen
+}
+
+func disconnectedIconBytes() []byte {
+	connOnce.Do(initConnectionIcons)
+	return iconOrange
+}
+
+func serviceDownIconBytes() []byte {
+	connOnce.Do(initConnectionIcons)
+	return iconRed
+}
+
+type rgba struct {
+	r, g, b, a uint8
+}
+
+func initConnectionIcons() {
+	iconGreen = makeConnectionICO(16, rgba{r: 0x2e, g: 0xcc, b: 0x71, a: 0xff})  // green
+	iconOrange = makeConnectionICO(16, rgba{r: 0xf3, g: 0x9c, b: 0x12, a: 0xff}) // orange
+	iconRed = makeConnectionICO(16, rgba{r: 0xe7, g: 0x4c, b: 0x3c, a: 0xff})    // red
+}
+
+// makeConnectionICO creates a minimal .ico (1 image, 32bpp DIB) showing a "link" glyph.
+// Background is transparent.
+func makeConnectionICO(size int, fg rgba) []byte {
+	if size <= 0 {
+		size = 16
+	}
+	outline := rgba{r: 0x1f, g: 0x2d, b: 0x3d, a: 0xff}
+
+	w, h := size, size
+	maskRowBytes := ((w + 31) / 32) * 4
+
+	shape := func(x, y int) bool {
+		c1x, c2x := w/2-3, w/2+3
+		cy := h / 2
+		r := 3
+		dx1, dy1 := x-c1x, y-cy
+		dx2, dy2 := x-c2x, y-cy
+		inCircle1 := dx1*dx1+dy1*dy1 <= r*r
+		inCircle2 := dx2*dx2+dy2*dy2 <= r*r
+		inBar := x >= c1x+r-1 && x <= c2x-r+1 && y >= cy-1 && y <= cy+1
+		return inCircle1 || inCircle2 || inBar
+	}
+
+	isOutline := func(x, y int) bool {
+		if !shape(x, y) {
+			return false
+		}
+		for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+			nx, ny := x+d[0], y+d[1]
+			if nx < 0 || nx >= w || ny < 0 || ny >= h {
+				return true
+			}
+			if !shape(nx, ny) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Pixel buffer: BGRA, bottom-up.
+	pixels := make([]byte, 0, w*h*4)
+	for y := h - 1; y >= 0; y-- {
+		for x := 0; x < w; x++ {
+			if !shape(x, y) {
+				pixels = append(pixels, 0, 0, 0, 0)
+				continue
+			}
+			c := fg
+			if isOutline(x, y) {
+				c = outline
+			}
+			pixels = append(pixels, c.b, c.g, c.r, c.a)
+		}
+	}
+
+	mask := make([]byte, maskRowBytes*h) // all zeros
+
+	type bitmapInfoHeader struct {
+		Size          uint32
+		Width         int32
+		Height        int32
+		Planes        uint16
+		BitCount      uint16
+		Compression   uint32
+		SizeImage     uint32
+		XPelsPerMeter int32
+		YPelsPerMeter int32
+		ClrUsed       uint32
+		ClrImportant  uint32
+	}
+	bih := bitmapInfoHeader{
+		Size:        40,
+		Width:       int32(w),
+		Height:      int32(h * 2),
+		Planes:      1,
+		BitCount:    32,
+		Compression: 0,
+		SizeImage:   uint32(len(pixels)),
+	}
+
+	dib := &bytes.Buffer{}
+	_ = binary.Write(dib, binary.LittleEndian, bih)
+	dib.Write(pixels)
+	dib.Write(mask)
+
+	ico := &bytes.Buffer{}
+	_ = binary.Write(ico, binary.LittleEndian, uint16(0)) // reserved
+	_ = binary.Write(ico, binary.LittleEndian, uint16(1)) // type
+	_ = binary.Write(ico, binary.LittleEndian, uint16(1)) // count
+
+	wb := uint8(w)
+	hb := uint8(h)
+	if w >= 256 {
+		wb = 0
+	}
+	if h >= 256 {
+		hb = 0
+	}
+	ico.WriteByte(wb)
+	ico.WriteByte(hb)
+	ico.WriteByte(0) // color count
+	ico.WriteByte(0) // reserved
+	_ = binary.Write(ico, binary.LittleEndian, uint16(1))  // planes
+	_ = binary.Write(ico, binary.LittleEndian, uint16(32)) // bitcount
+	_ = binary.Write(ico, binary.LittleEndian, uint32(dib.Len()))
+	_ = binary.Write(ico, binary.LittleEndian, uint32(6+16)) // offset
+
+	ico.Write(dib.Bytes())
+	return ico.Bytes()
 }
 
 // A small .ico payload. Keeping it as base64 avoids binary files in the repo.

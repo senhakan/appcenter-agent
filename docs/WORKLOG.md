@@ -448,6 +448,113 @@ Doğrulama:
     - `GET /api/v1/agents/<uuid>` -> `system_profile` dolu geldi.
     - `GET /api/v1/agents/<uuid>/system/history` -> `total>=1`, ilk kayit `changed_fields=['initial']`.
 
+## 2026-02-18
+
+### Store UI: Kurulum Durumunun Anlik Gorunurlugu (Transient State)
+
+- Sorun:
+  - Store kartinda `Kur` tiklandiktan sonra yalnizca toast gorunuyor, kart durumu hemen degismiyordu.
+  - Bazi ortamlarda server `install_state` gec/eksik geldigi icin kullanici akisi takip edemiyordu.
+- Agent UI degisiklikleri:
+  - Dosya: `ui/store-ui/Program.cs`
+  - `RequestInstall` donusu `InstallAck(queue_status, message)` olacak sekilde duzenlendi.
+  - WebView JS tarafina `applyInstallAck(appId, queueStatus)` eklendi.
+  - `transientState` map ile `queued/already_queued -> pending` aninda karta yansitildi.
+  - `installed` veya server `install_state` geldiginde transient durum temizleniyor/eziliyor.
+- Build:
+  - Gecici SDK kuruldu: `/tmp/dotnet-sdk`
+  - Komut:
+    - `/tmp/dotnet-sdk/dotnet publish ui/store-ui/AppCenter.StoreUI.csproj -c Release -r win-x64 --self-contained false /p:EnableWindowsTargeting=true -o /tmp/ac_storeui_publish`
+  - Sonuc: Publish basarili.
+- Canli dagitim (test host):
+  - Host: `10.6.20.172`
+  - Hedef: `C:\Program Files\AppCenter\appcenter-store-ui.exe` (ve bagli dosyalar)
+  - Script: `C:\Temp\deploy_store_ui_webview.ps1`
+  - Sonuc: Yeni `appcenter-store-ui.exe` kopyalandi (`LastWriteTime: 2026-02-18 22:29:20`), `RUNTIMES=OK`.
+  - Not: Tray restart yapilmadi; sadece `appcenter-store-ui` prosesi guncelleme sirasinda script tarafindan kapatildi.
+
+### Store Queue Takibi ve Sunucu/Agent Duzeltmeleri
+
+- Sorun:
+  - Store'da `Kur` -> `Kuyrukta` sonrasinda ilerleme gorunmeme / uzun sure takili kalma.
+  - Koken nedenler:
+    - Agent `work_hours` kisiti (`09:00-18:00 UTC`) disinda komutlar islenmiyordu.
+    - Agent `get_store` cevabinda `install_state` alanini tasimiyordu.
+    - Store kaynakli komutlar server tarafinda `force_update=false` oldugu icin jitter/work-hours'a takiliyordu.
+- Agent degisikligi:
+  - Dosya: `internal/api/client.go`
+  - `StoreApp` modeline `install_state` eklendi.
+  - Windows binary guncellemesi:
+    - `appcenter-service.exe`
+    - `appcenter-tray-cli.exe`
+  - 172 test host deploy:
+    - `C:\Program Files\AppCenter\appcenter-service.exe` (`LastWriteTime: 2026-02-18 22:48:05`)
+    - `C:\Program Files\AppCenter\appcenter-tray-cli.exe` (`LastWriteTime: 2026-02-18 22:48:05`)
+- Server degisiklikleri:
+  - `app/services/heartbeat_service.py`
+    - Deployment bagimsiz (store-origin) komutlarda `force_update=true`.
+  - `app/services/deployment_service.py`
+    - Store install yeniden tiklandiginda, `downloading/installing` durumlari `last_attempt` 5 dakikadan eskiyse yeniden `pending`e alinip `re-queued` donuyor.
+- Operasyonel not:
+  - 172 ajan config'inde test icin `work_hours` araligi `00:00-23:59` yapildi.
+
+### Store UI: Basarisizlik Nedenini Kartta Gosterme
+
+- Server:
+  - `app/schemas.py`: `StoreAppItem` modeline `error_message` eklendi.
+  - `app/api/v1/agent.py`:
+    - `/store` cevabina `error_message` eklendi.
+    - Null-byte ve cok uzun metinleri temizleyen `_clean_error_message` eklendi.
+    - Eski task fail raporunun yeni basarili durumu ezmesini engelleyen koruma ile birlikte kullanildi.
+- Agent:
+  - `internal/api/client.go`: `StoreApp` modeline `error_message` alani eklendi.
+- Store UI:
+  - `ui/store-ui/Program.cs`:
+    - `StoreApp` modeline `error_message` eklendi.
+    - `install_state=failed` iken kartta kirmizi hata kutusu (`Basarisiz: ...`) gosterimi eklendi.
+- Dagitim:
+  - 172 hosta guncel binary'ler deploy edildi:
+    - `appcenter-service.exe`
+    - `appcenter-tray-cli.exe`
+    - `appcenter-store-ui.exe`
+
+### Store Faz-1: Cakisma Tespiti + Uyari (Soft Warning)
+
+- Kapsam:
+  - Kurulumu bloklamadan, inventory bazli olasi cakisma tespiti ve kullanici uyari mesaji.
+- Server:
+  - `app/api/v1/agent.py`
+    - `/store` cevabina conflict alanlari eklendi:
+      - `conflict_detected`
+      - `conflict_confidence` (`high|medium`)
+      - `conflict_message`
+    - Agent inventory (`agent_software_inventory`) ile app ismi normalize edilerek eslestirme yapildi.
+  - `app/schemas.py`
+    - `StoreAppItem` modeline conflict alanlari eklendi.
+- Agent:
+  - `internal/api/client.go`
+    - `StoreApp` modeline conflict alanlari eklendi.
+- Store UI:
+  - `ui/store-ui/Program.cs`
+    - `conflict_detected` + `conflict_message` varsa kartta sari uyari kutusu gosterimi eklendi.
+- Canli dogrulama:
+  - 172 hostta `get_store` cevabinda 7Zip icin conflict uyarisi goruldu.
+
+### Tray IPC: Admin Gerekmeden Baglanabilme
+
+- Sorun:
+  - `appcenter-tray.exe` admin degilken local service IPC'ye baglanamiyor, ikon yesile donmuyordu.
+- Duzeltme:
+  - `internal/ipc/namedpipe_windows.go`
+  - Named pipe ACL guncellendi:
+    - `SYSTEM` + `Administrators` + `Interactive Users`
+  - Amac: non-admin oturumdaki tray'in `get_status/get_store` IPC erisimi.
+- Dagitim:
+  - 172 hostta `appcenter-service.exe` guncellenip service restart edildi.
+- Ek kontrol:
+  - Autostart kaydi mevcut:
+    - `HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\AppCenterTray`
+
 ## Kural
 
 Bu dosya her teknik degisiklikten sonra guncellenir:
@@ -456,3 +563,177 @@ Bu dosya her teknik degisiklikten sonra guncellenir:
 - Hangi dosyalarda?
 - Hangi test/build calisti?
 - Sonuc ne oldu?
+
+### 2026-02-18 Store UI polish + MSI paketleme
+
+- UI/Tray
+  - Store pencere genisligi artirildi; dikeyde iki sira kart gorunecek acilis boyutu ayarlandi.
+  - Ust bar (arama + ust butonlar) responsive davraniş icin layout iyilestirildi.
+  - `Yuklu` durumu buton gorunumunde yesil ve pasif hale getirildi.
+  - Kart ikonlari onceki boyuta gore %50 buyutuldu.
+- Operasyon
+  - MSI paketleme adimi tekrar calistirildi (Windows build zinciri ile).
+  - Uretilen MSI test sunucusuna (172) kopyalandi ve test klasorune birakildi.
+
+### 2026-02-19 MSI build ve test host kopyasi (172)
+
+- Ortam:
+  - Hedef host: `10.6.20.172` (`akg03wst005\\apptest`)
+  - WiX v3 `winget` ile kurulamadigi icin resmi binary zip kullanildi:
+    - `C:\\Temp\\wix311\\candle.exe`
+    - `C:\\Temp\\wix311\\light.exe`
+- MSI build:
+  - Staging: `C:\\Temp\\agent-msi`
+  - Komut:
+    - `C:\\Temp\\agent-msi\\build\\build-msi.ps1 -BuildDir C:\\Temp\\agent-msi\\build -SourceDir C:\\Temp\\agent-msi -OutDir C:\\Temp\\agent-msi\\out`
+  - Sonuc:
+    - `C:\\Temp\\agent-msi\\out\\AppCenterAgent-0.1.17.msi`
+    - Boyut: `18,272,256` bytes
+- Test makinesine kopya:
+  - `C:\\Temp\\packages\\AppCenterAgent-0.1.17.msi`
+  - SHA256:
+    - `0BCD69811D6E077FC63ABDB883AB32985D6633AD265ED46D9999374C03199D33`
+
+### 2026-02-20 Remote helper paketleme + stale process cleanup
+
+- Agent runtime:
+  - `internal/remotesupport/session.go`
+    - Service baslangicinda stale helper cleanup eklendi.
+    - Yeni session baslatmadan once `vnc.Stop()` ile temiz baslangic eklendi.
+    - `remote_support_end` cagrisi session yokken de stale helper temizleyecek sekilde guncellendi.
+  - `internal/remotesupport/vnc.go`
+    - `Stop()` icine Windows fallback eklendi: `taskkill /F /IM acremote-helper.exe`.
+- Build/MSI zinciri:
+  - `installer/wix/AppCenterAgent.wxs`
+    - `acremote-helper.exe` MSI icine dahil edildi (`cmpRemoteHelperExe`).
+  - `build/fetch-ultravnc-helper.ps1` (yeni)
+    - UltraVNC ZIP indirip `x64/winvnc.exe` dosyasini `acremote-helper.exe` olarak build klasorune kopyaliyor.
+  - `build/build.bat`
+    - Build akisina `fetch-ultravnc-helper.ps1` adimi eklendi.
+  - `build/build-msi.ps1`
+    - MSI oncesi `build/acremote-helper.exe` varlik kontrolu eklendi.
+  - `.github/workflows/build.yml`
+    - CI build ve MSI job'larina helper indirme adimi eklendi.
+  - `build/service-install.bat`
+    - Manual install script'ine `acremote-helper.exe` kopyalama adimi eklendi.
+- Testler:
+  - `go test ./...` basarili.
+  - Windows 172 hostta helper fetch script calisti:
+    - Cikti: `C:\\Temp\\agent-build-test\\acremote-helper.exe`
+  - Stale helper cleanup smoke:
+    - Manuel `acremote-helper.exe -run` baslatildi.
+    - `appcenter-tray-cli.exe remote_support_end` sonrasi helper process kapandi (`CLEANUP_OK`).
+
+### 2026-02-20 Remote support canli durum telemetrisi + hiz ayari
+
+- Agent:
+  - Heartbeat payload'ina `remote_support` runtime status eklendi:
+    - `state`
+    - `session_id`
+    - `helper_running`
+    - `helper_pid`
+  - `remote_support_status` IPC yanitinda helper process gorunurlugu aktif edildi.
+- Server:
+  - Agent modeline remote support runtime alanlari eklendi:
+    - `remote_support_state`
+    - `remote_support_session_id`
+    - `remote_support_helper_running`
+    - `remote_support_helper_pid`
+    - `remote_support_updated_at`
+  - Heartbeat isleme tarafinda bu alanlar persist edildi.
+  - Agent detail UI'ina remote support alanlari eklendi.
+- Test host (`10.6.20.172`) config:
+  - `heartbeat.interval_sec: 5` (istegin agente daha hizli dusmesi icin)
+  - `remote_support.approval_timeout_sec: 120` (onay suresi korunuyor)
+- Canli dogrulama:
+  - Ajan listesinden baglan akisi: `pending_approval -> approved -> active` basarili.
+  - `acremote-helper.exe` process/pid ve listen portlari (5800/5900) dogrulandi.
+  - Session bitiminde stale helper cleanup dogrulandi.
+- Rollback snapshot:
+  - Server: `/opt/appcenter/server/.backup_remote_support_runtime_20260220_194350`
+  - Agent: `C:\\Temp\\appcenter-backup-20260220_224401`
+
+### 2026-02-20 Agent listesinde remote durum gorunurlugu
+
+- Server UI:
+  - `app/templates/agents/list.html`
+    - Ajan listesine `Remote` ve `Helper` sutunlari eklendi.
+    - `Remote`: `state / session_id` formati, `remote_support_updated_at` tooltip.
+    - `Helper`: `Calisiyor (PID)` / `Calismiyor`.
+- Deploy:
+  - Template canli ortama kopyalandi ve `appcenter.service` restart edildi.
+  - Health kontrolu: `/health` -> `{"status":"ok"}`
+
+### 2026-02-20 Dashboard karti: Aktif Remote Oturum
+
+- Server API:
+  - `app/api/v1/web.py` -> `/dashboard/stats` cevabina `active_remote_sessions` eklendi.
+  - Sayim kapsami: `pending_approval`, `approved`, `connecting`, `active`.
+- Schema:
+  - `app/schemas.py` -> `DashboardStatsResponse.active_remote_sessions`.
+- UI:
+  - `app/templates/dashboard.html` -> `Aktif Remote Oturum` metriği eklendi (`m-active-remote`).
+- Canli dogrulama:
+  - `/api/v1/dashboard/stats` cevabi:
+    - `"active_remote_sessions": 0`
+
+### 2026-02-20/21 Server tarafi Guacamole embed stabilizasyonu + noVNC paralel test
+
+- Hedef:
+  - Agent tarafini bozmadan (WinVNC yasam dongusu kullanici kontrolunde), server/web uzerinden goruntu akisinin calisir hale getirilmesi.
+
+- Guacamole tarafinda yapilanlar (server):
+  - `guacamole/guacd` docker uzerinde calistirildi, nginx proxy katmani duzenlendi.
+  - `app/services/guacamole_service.py`:
+    - Connection `upsert` (varsa update, yoksa create) akisi.
+    - VNC parametreleri netlesti:
+      - `hostname`, `port`, `password`
+      - `security=vnc`, `cursor=remote`, `color-depth=24`
+      - `swap-red-blue=false`, `disable-display-resize=true`, `read-only=false`
+  - `app/api/v1/remote_support.py`:
+    - `viewer-ticket` tarafinda parola fallback (session yoksa global VNC password).
+  - `app/config.py` + `.env`:
+    - `REMOTE_SUPPORT_VNC_PORT`, `REMOTE_SUPPORT_VNC_PASSWORD` aktif kullanima alindi.
+
+- Guacamole web embed sonuc:
+  - Custom `guacamole-common-js` render denemelerinde siyah ekran/intermittent sorunlar goruldu.
+  - Kalici cozum: Guacamole resmi web client'i iframe icinde acildi.
+    - Session sayfasi ticket uretiyor.
+    - `GUAC_AUTH` localStorage set edilip `/#/client/<identifier>` aciliyor.
+  - `app/templates/remote_support/session.html` mevcut calisan yaklasim bu sekilde.
+  - Ek: Connect auto-start kapatildi; baglanti sadece `Baglan` ile manuel basliyor (VNC tek oturum kisiti icin).
+
+- noVNC paralel test hatti (karsilastirma icin):
+  - Ayrik test butonu eklendi: `noVNC Test` (ana Guacamole ekranini bozmaz).
+  - Yeni sayfa: `app/templates/remote_support/novnc.html`
+  - Yeni route: `/remote-support/sessions/{id}/novnc`
+  - Yeni API: `/api/v1/remote-support/sessions/{id}/novnc-ticket`
+  - Token tabanli websockify:
+    - Container: `novnc-ws-172`
+    - Token dosyasi: `/opt/appcenter/novnc/tokens.txt`
+    - Nginx route: `/novnc-ws`
+  - noVNC client acilisi:
+    - `vnc.html` ile iframe acilisi
+    - `resize=scale`, `show_dot=true`, kalite/sikistirma parametreleri
+    - Dinamik iframe yukseklik ayari
+
+- Denendi ama uygulanmayan / geri alinan yaklasimlar:
+  - Guacamole custom JS (`Guacamole.Client + WebSocketTunnel`) tam embed:
+    - Baglanti aktif gorunse de sahada tekrarlayan siyah ekran verdi.
+    - Bu nedenle resmi Guacamole web client iframe yaklasimina gecildi.
+  - Guacamole route id formatinda ilk deneme:
+    - `Illegal identifier - unknown type` hatasi alindi, duzeltildi.
+  - noVNC sadece CDN import:
+    - Bazi testlerde script hic calismadi (ticket cagrisi dusmedi).
+    - CDN + local fallback modeline gecildi.
+  - noVNC `vnc_lite.html` custom RFB varyanti:
+    - Baglanti aktif olsa da goruntu/kurulum tutarsizligi goruldu.
+    - `vnc.html` tabanli acilisa gecildi.
+  - WinVNC binary adlandirma/yonetim:
+    - `acremote-helper.exe` adlandirma testte karisiklik yaratti.
+    - Karar: WinVNC servis yasam dongusu kullanici yonetiminde kalacak, agent mudahale etmeyecek.
+
+- Operasyonel not:
+  - noVNC token dosyasi yazma izni problemi yasandi:
+    - `PermissionError: /opt/appcenter/novnc/tokens.txt.tmp`
+    - Cozum: dizin/dosya sahipligi `appcenter:appcenter` olarak duzeltildi.

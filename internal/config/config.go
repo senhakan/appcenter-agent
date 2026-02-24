@@ -3,20 +3,22 @@ package config
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Agent     AgentConfig     `yaml:"agent"`
-	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
+	Server        ServerConfig        `yaml:"server"`
+	Agent         AgentConfig         `yaml:"agent"`
+	Heartbeat     HeartbeatConfig     `yaml:"heartbeat"`
 	SystemProfile SystemProfileConfig `yaml:"system_profile"`
-	Download  DownloadConfig  `yaml:"download"`
-	Install   InstallConfig   `yaml:"install"`
-	Update    UpdateConfig    `yaml:"update"`
-	WorkHours WorkHoursConfig `yaml:"work_hours"`
-	Logging   LoggingConfig   `yaml:"logging"`
+	RemoteSupport RemoteSupportConfig `yaml:"remote_support"`
+	Download      DownloadConfig      `yaml:"download"`
+	Install       InstallConfig       `yaml:"install"`
+	Update        UpdateConfig        `yaml:"update"`
+	WorkHours     WorkHoursConfig     `yaml:"work_hours"`
+	Logging       LoggingConfig       `yaml:"logging"`
 }
 
 type ServerConfig struct {
@@ -64,11 +66,84 @@ type WorkHoursConfig struct {
 	EndUTC   string `yaml:"end_utc"`
 }
 
+type RemoteSupportConfig struct {
+	Enabled            bool `yaml:"enabled"`
+	ApprovalTimeoutSec int  `yaml:"approval_timeout_sec"`
+}
+
 type LoggingConfig struct {
 	Level      string `yaml:"level"`
 	File       string `yaml:"file"`
 	MaxSizeMB  int    `yaml:"max_size_mb"`
 	MaxBackups int    `yaml:"max_backups"`
+}
+
+func Default() *Config {
+	// Keep this aligned with configs/config.yaml.template (but generated programmatically so
+	// the service can recover even if the file is missing on disk).
+	return &Config{
+		Server: ServerConfig{
+			URL:       "http://10.6.100.170:8000",
+			VerifySSL: false,
+		},
+		Agent: AgentConfig{
+			Version:   "0.0.0",
+			UUID:      "",
+			SecretKey: "",
+		},
+		Heartbeat: HeartbeatConfig{IntervalSec: 60},
+		SystemProfile: SystemProfileConfig{
+			ReportIntervalMin: 720,
+		},
+		RemoteSupport: RemoteSupportConfig{
+			Enabled:            false,
+			ApprovalTimeoutSec: 120,
+		},
+		Download: DownloadConfig{
+			TempDir:           `C:\ProgramData\AppCenter\downloads`,
+			BandwidthLimitKBs: 1024,
+		},
+		Install: InstallConfig{
+			TimeoutSec:        1800,
+			EnableAutoCleanup: true,
+		},
+		Update: UpdateConfig{
+			AutoApply:   true,
+			ServiceName: "AppCenterAgent",
+			HelperPath:  `C:\Program Files\AppCenter\appcenter-update-helper.exe`,
+		},
+		WorkHours: WorkHoursConfig{
+			StartUTC: "09:00",
+			EndUTC:   "18:00",
+		},
+		Logging: LoggingConfig{
+			Level:      "info",
+			File:       `C:\ProgramData\AppCenter\logs\agent.log`,
+			MaxSizeMB:  10,
+			MaxBackups: 5,
+		},
+	}
+}
+
+// EnsureExists creates a default config file when it does not exist.
+// It never overwrites an existing config.
+func EnsureExists(path string) error {
+	_, err := os.Stat(path)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	b, err := yaml.Marshal(Default())
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o600)
 }
 
 func Load(path string) (*Config, error) {
@@ -125,6 +200,9 @@ func (c *Config) Validate() error {
 	if c.SystemProfile.ReportIntervalMin < 0 {
 		return errors.New("system_profile.report_interval_min must be >= 0")
 	}
+	if c.RemoteSupport.ApprovalTimeoutSec <= 0 {
+		return errors.New("remote_support.approval_timeout_sec must be > 0")
+	}
 	return nil
 }
 
@@ -134,5 +212,8 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.SystemProfile.ReportIntervalMin == 0 {
 		c.SystemProfile.ReportIntervalMin = 720
+	}
+	if c.RemoteSupport.ApprovalTimeoutSec == 0 {
+		c.RemoteSupport.ApprovalTimeoutSec = 120
 	}
 }

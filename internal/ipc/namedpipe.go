@@ -8,6 +8,7 @@ type Request struct {
 	Action    string `json:"action"`
 	AppID     int    `json:"app_id,omitempty"`
 	Timestamp string `json:"timestamp,omitempty"`
+	Data      any    `json:"data,omitempty"`
 }
 
 type Response struct {

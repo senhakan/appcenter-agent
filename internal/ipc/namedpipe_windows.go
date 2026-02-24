@@ -19,10 +19,10 @@ type pipeServer struct {
 
 func StartPipeServer(handler Handler) (Server, error) {
 	config := &winio.PipeConfig{
-		// Allow SYSTEM (SY) and built-in Administrators (BA) only.
-		// WD (Everyone) was too permissive and allowed any user to send
-		// install commands to the SYSTEM service.
-		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)",
+		// Allow SYSTEM (SY), built-in Administrators (BA), and interactive
+		// logged-in users (IU). This lets non-admin tray instances read IPC
+		// status/store while still avoiding broad Everyone (WD) access.
+		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)",
 		MessageMode:        true,
 		InputBufferSize:    65536,
 		OutputBufferSize:   65536,

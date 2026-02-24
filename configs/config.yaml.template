@@ -1,9 +1,9 @@
 server:
-  url: "http://127.0.0.1:8000"
+  url: "http://10.6.100.170:8000"
   verify_ssl: false
 
 agent:
-  version: "0.1.12"
+  version: "0.1.20"
   uuid: ""
   secret_key: ""
 
@@ -12,6 +12,10 @@ heartbeat:
 
 system_profile:
   report_interval_min: 720
+
+remote_support:
+  enabled: false
+  approval_timeout_sec: 120
 
 download:
   temp_dir: "C:\\ProgramData\\AppCenter\\downloads"

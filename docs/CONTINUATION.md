@@ -24,6 +24,30 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
 - MSI exit code uyumlulugu:
   - `3010` (reboot required) ve `1641` (reboot initiated) agent tarafinda basari sayilir
 
+### Uzak Destek Web Goruntuleme (Guncel Durum)
+
+- noVNC (aktif/varsayilan yol):
+  - Session ekrani noVNC ile calisir.
+  - `novnc-ticket` API + `/novnc-ws` WS bridge kullanilir.
+  - `REMOTE_SUPPORT_NOVNC_MODE=embedded|iframe` ve `REMOTE_SUPPORT_WS_MODE=internal|external` kombinasyonlari desteklenir.
+  - Uretimde onerilen profil: `embedded + internal`.
+
+- Guacamole (pasif/fallback):
+  - Varsayilan olarak devre disidir.
+  - Gerekirse server tarafindaki `config/guacamole/REENABLE.md` adimlari ile tekrar alinabilir.
+
+- Kayit ihtiyaci notu:
+  - noVNC hattinda merkezi kayit/playback yerlesik degildir; bu ihtiyac icin ek cozum gereklidir.
+
+### Denenip Birakilanlar (Kisa)
+
+- Guacamole custom JS (`guacamole-common-js`) dogrudan embed:
+  - Sahada siyah ekran/tutarsizlik nedeniyle birakildi.
+- noVNC sadece CDN import:
+  - Bazi ortamlarda script yukleme/tetikleme tutarsizligi goruldu, fallback ihtiyaci dogdu.
+- noVNC `vnc_lite.html` custom baglanti:
+  - Bagli gorunup goruntu gelmeyen senaryolar goruldu, `vnc.html` tabanli mode gecildi.
+
 Detay kronoloji: `docs/WORKLOG.md`
 
 ## Windows Test Ortami

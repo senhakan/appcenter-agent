@@ -21,15 +21,55 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of AppCenter Agent is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <!-- Public MSI properties for unattended/bootstrap installation -->
-    <Property Id="SERVER_URL" Secure="yes" />
+    <!-- Public MSI properties for unattended/bootstrap installation.
+         Default SERVER_URL is used when not passed on the command line. -->
+    <Property Id="SERVER_URL" Secure="yes" Value="http://10.6.100.170:8000" />
     <Property Id="SECRET_KEY" Secure="yes" Hidden="yes" />
+
+    <!-- Minimal UI with an extra dialog to capture SERVER_URL/SECRET_KEY in interactive installs. -->
+    <UI>
+      <UIRef Id="WixUI_Minimal" />
+      <UIRef Id="WixUI_ErrorProgressText" />
+
+      <Dialog Id="BootstrapDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes"
+          Text="Bootstrap Settings" />
+        <Control Id="Desc" Type="Text" X="15" Y="23" Width="340" Height="28" Transparent="yes" NoPrefix="yes"
+          Text="Enter the AppCenter Server URL. Secret Key is optional (leave empty to auto-register)." />
+
+        <Control Id="ServerUrlLabel" Type="Text" X="15" Y="70" Width="100" Height="15" Text="Server URL:" />
+        <Control Id="ServerUrlEdit" Type="Edit" X="120" Y="68" Width="235" Height="18" Property="SERVER_URL" />
+
+        <Control Id="SecretLabel" Type="Text" X="15" Y="100" Width="100" Height="15" Text="Secret Key:" />
+        <Control Id="SecretEdit" Type="Edit" X="120" Y="98" Width="235" Height="18" Property="SECRET_KEY" Password="yes" />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
+          <Condition Action="disable">SERVER_URL = ""</Condition>
+          <Condition Action="enable">SERVER_URL &lt;&gt; ""</Condition>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <!-- Insert BootstrapDlg into the WixUI_Minimal flow (WelcomeDlg -> ... -> VerifyReadyDlg).
+           Important: MSI processes control events in ascending Order; for NewDialog, the first match wins.
+           So we must publish our navigation earlier than the default WixUI events. -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="BootstrapDlg" Order="1">SERVER_URL = ""</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="2">SERVER_URL &lt;&gt; ""</Publish>
+      <Publish Dialog="BootstrapDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="1">1</Publish>
+      <Publish Dialog="BootstrapDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1">1</Publish>
+    </UI>
 
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <ComponentRef Id="cmpServiceExe" />
       <ComponentRef Id="cmpTrayExe" />
       <ComponentRef Id="cmpTrayCliExe" />
       <ComponentRef Id="cmpUpdateHelperExe" />
+      <ComponentRef Id="cmpRemoteHelperExe" />
+      <ComponentRef Id="cmpStoreUIExe" />
       <ComponentRef Id="cmpTrayAutoStart" />
       <ComponentRef Id="cmpConfigFile" />
       <ComponentRef Id="cmpDownloadsDir" />
@@ -75,7 +115,7 @@
         Start="install"
         Stop="both"
         Remove="uninstall"
-        Wait="yes" />
+        Wait="no" />
     </Component>
 
     <!-- Tray binaries -->
@@ -89,6 +129,14 @@
 
     <Component Id="cmpUpdateHelperExe" Guid="6C7C0357-86F0-477C-B491-1D342DB74D8A" Directory="INSTALLFOLDER" Win64="yes">
       <File Id="filUpdateHelperExe" Source="$(var.BuildDir)\appcenter-update-helper.exe" KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpRemoteHelperExe" Guid="B9C7DF39-D8A0-4FEE-9324-5D07CC6352A8" Directory="INSTALLFOLDER" Win64="yes">
+      <File Id="filRemoteHelperExe" Source="$(var.BuildDir)\acremote-helper.exe" KeyPath="yes" />
+    </Component>
+
+    <Component Id="cmpStoreUIExe" Guid="5FBB30D6-4231-4098-8CA7-BC6D1538D313" Directory="INSTALLFOLDER" Win64="yes">
+      <File Id="filStoreUIExe" Source="$(var.BuildDir)\appcenter-store-ui.exe" KeyPath="yes" />
     </Component>
 
     <!-- Tray autostart for all users -->

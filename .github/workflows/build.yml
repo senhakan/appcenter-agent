@@ -35,6 +35,10 @@ jobs:
       - name: Build update helper (windows)
         run: GOOS=windows GOARCH=amd64 go build -o build/appcenter-update-helper.exe ./cmd/update-helper
 
+      - name: Fetch UltraVNC helper
+        shell: pwsh
+        run: ./build/fetch-ultravnc-helper.ps1 -OutDir build
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -66,6 +70,8 @@ jobs:
           go build -ldflags="-H=windowsgui" -o build/appcenter-tray.exe ./cmd/tray
           go build -o build/appcenter-tray-cli.exe ./cmd/tray
           go build -o build/appcenter-update-helper.exe ./cmd/update-helper
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\build\fetch-ultravnc-helper.ps1 -OutDir build
+          dotnet publish .\ui\store-ui\AppCenter.StoreUI.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o build
 
       - name: Build MSI
         run: powershell -NoProfile -ExecutionPolicy Bypass -File build/build-msi.ps1 -BuildDir build -SourceDir .

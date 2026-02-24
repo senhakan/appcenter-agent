@@ -5,9 +5,12 @@ package inventory
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +23,69 @@ type appxPkg struct {
 
 var guidLikeRe = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var hexLikeRe = regexp.MustCompile(`(?i)^[0-9a-f]{12,40}$`)
+var appxCacheMu sync.Mutex
+var appxCache []SoftwareItem
+var appxCacheUpdatedAt time.Time
+
+const appxCacheMaxAge = 12 * time.Hour
+var appxCacheFilePath = filepath.Join(os.TempDir(), "appcenter_appx_cache.json")
+
+type appxCacheFile struct {
+	UpdatedAt string         `json:"updated_at"`
+	Items     []SoftwareItem `json:"items"`
+}
+
+func cloneSoftwareItems(in []SoftwareItem) []SoftwareItem {
+	out := make([]SoftwareItem, len(in))
+	copy(out, in)
+	return out
+}
+
+func getAppxCache() ([]SoftwareItem, bool) {
+	appxCacheMu.Lock()
+	defer appxCacheMu.Unlock()
+	if len(appxCache) == 0 {
+		// Fallback: persisted cache from previous process lifetime.
+		raw, err := os.ReadFile(appxCacheFilePath)
+		if err != nil || len(raw) == 0 {
+			return nil, false
+		}
+		var f appxCacheFile
+		if err := json.Unmarshal(raw, &f); err != nil || len(f.Items) == 0 {
+			return nil, false
+		}
+		if f.UpdatedAt != "" {
+			if ts, err := time.Parse(time.RFC3339, f.UpdatedAt); err == nil {
+				if time.Since(ts) > appxCacheMaxAge {
+					return nil, false
+				}
+				appxCache = cloneSoftwareItems(f.Items)
+				appxCacheUpdatedAt = ts
+				return cloneSoftwareItems(appxCache), true
+			}
+		}
+		// If timestamp parse fails, still reuse cache once (best effort).
+		appxCache = cloneSoftwareItems(f.Items)
+		appxCacheUpdatedAt = time.Now()
+		return cloneSoftwareItems(appxCache), true
+	}
+	if time.Since(appxCacheUpdatedAt) > appxCacheMaxAge {
+		return nil, false
+	}
+	return cloneSoftwareItems(appxCache), true
+}
+
+func setAppxCache(items []SoftwareItem) {
+	appxCacheMu.Lock()
+	defer appxCacheMu.Unlock()
+	appxCache = cloneSoftwareItems(items)
+	appxCacheUpdatedAt = time.Now()
+	out, _ := json.Marshal(appxCacheFile{
+		UpdatedAt: appxCacheUpdatedAt.Format(time.RFC3339),
+		Items:     appxCache,
+	})
+	_ = os.WriteFile(appxCacheFilePath, out, 0o600)
+}
 
 func scanAppxPackagesAllUsers() []SoftwareItem {
 	// PowerShell is the most pragmatic way to enumerate Appx packages without
@@ -44,6 +110,9 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 
 	out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps).Output()
 	if err != nil || len(out) == 0 {
+		if cached, ok := getAppxCache(); ok {
+			return cached
+		}
 		return nil
 	}
 
@@ -52,6 +121,9 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 	if err := json.Unmarshal(out, &many); err != nil {
 		var one appxPkg
 		if err2 := json.Unmarshal(out, &one); err2 != nil {
+			if cached, ok := getAppxCache(); ok {
+				return cached
+			}
 			return nil
 		}
 		many = []appxPkg{one}
@@ -79,6 +151,17 @@ func scanAppxPackagesAllUsers() []SoftwareItem {
 			Architecture: strings.TrimSpace(p.Architecture),
 		})
 	}
+
+	// Transient query failures can yield an empty list and cause false mass
+	// "removed" diffs. Reuse a fresh successful snapshot in that case.
+	if len(items) == 0 {
+		if cached, ok := getAppxCache(); ok {
+			return cached
+		}
+		return nil
+	}
+	setAppxCache(items)
+
 	return items
 }
 

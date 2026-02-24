@@ -19,6 +19,7 @@ import (
 	"appcenter-agent/internal/inventory"
 	"appcenter-agent/internal/ipc"
 	"appcenter-agent/internal/queue"
+	"appcenter-agent/internal/remotesupport"
 	"appcenter-agent/internal/system"
 	"appcenter-agent/internal/updater"
 	"appcenter-agent/pkg/utils"
@@ -66,7 +67,21 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	invManager := inventory.NewManager(logger)
 	invManager.ForceScan()
 
-	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted))
+	var sessionMgr *remotesupport.SessionManager
+	if cfg.RemoteSupport.Enabled {
+		sessionMgr = remotesupport.NewSessionManager(
+			client,
+			cfg.Agent.UUID,
+			cfg.Agent.SecretKey,
+			cfg.RemoteSupport.ApprovalTimeoutSec,
+			logger,
+		)
+		logger.Printf("remote support: enabled")
+	} else {
+		logger.Printf("remote support: disabled by config")
+	}
+
+	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted, sessionMgr))
 	if pipeErr != nil {
 		logger.Printf("named pipe server not started: %v", pipeErr)
 	} else {
@@ -74,7 +89,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		logger.Printf("named pipe server started: %s", ipc.PipeName)
 	}
 
-	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager)
+	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager, sessionMgr)
 	go sender.Start(ctx)
 
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
@@ -137,6 +152,13 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				}
 			}
 
+			if sessionMgr != nil && result.RemoteSupportRequest != nil {
+				go sessionMgr.HandleRequest(ctx, *result.RemoteSupportRequest)
+			}
+			if sessionMgr != nil && result.RemoteSupportEnd != nil {
+				go sessionMgr.HandleEndSignal(ctx, *result.RemoteSupportEnd)
+			}
+
 			// Periodic inventory scan.
 			invManager.ScanIfNeeded()
 
@@ -185,6 +207,7 @@ func buildIPCHandler(
 	taskQueue *queue.TaskQueue,
 	logger *log.Logger,
 	startedAt time.Time,
+	sessionMgr *remotesupport.SessionManager,
 ) ipc.Handler {
 	return func(req ipc.Request) ipc.Response {
 		switch strings.ToLower(req.Action) {
@@ -213,10 +236,57 @@ func buildIPCHandler(
 			if req.AppID <= 0 {
 				return ipc.Response{Status: "error", Message: "app_id is required"}
 			}
-			return ipc.Response{
-				Status:  "error",
-				Message: "install_from_store requires server-side deployment flow in current version",
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			resp, err := client.RequestStoreInstall(ctx, cfg.Agent.UUID, cfg.Agent.SecretKey, req.AppID)
+			if err != nil {
+				logger.Printf("ipc install_from_store failed: %v", err)
+				return ipc.Response{Status: "error", Message: err.Error()}
 			}
+
+			msg := "install request queued"
+			queueStatus := "queued"
+			if resp != nil && resp.Message != "" {
+				msg = resp.Message
+			}
+			if resp != nil && resp.Status != "" {
+				queueStatus = resp.Status
+			}
+			return ipc.Response{
+				Status:  "ok",
+				Message: msg,
+				Data: map[string]any{
+					"queue_status": queueStatus,
+				},
+			}
+		case "remote_support_status":
+			if !cfg.RemoteSupport.Enabled || sessionMgr == nil {
+				return ipc.Response{
+					Status: "ok",
+					Data: map[string]any{
+						"enabled": false,
+						"state":   "disabled",
+					},
+				}
+			}
+			helperRunning, helperPID := sessionMgr.HelperStatus()
+			return ipc.Response{
+				Status: "ok",
+				Data: map[string]any{
+					"enabled":        true,
+					"state":          string(sessionMgr.State()),
+					"session_id":     sessionMgr.CurrentSessionID(),
+					"helper_running": helperRunning,
+					"helper_pid":     helperPID,
+				},
+			}
+		case "remote_support_end":
+			if !cfg.RemoteSupport.Enabled || sessionMgr == nil {
+				return ipc.Response{Status: "error", Message: "remote support disabled"}
+			}
+			go sessionMgr.EndSession(context.Background(), "user")
+			return ipc.Response{Status: "ok", Message: "session end requested"}
 		default:
 			return ipc.Response{Status: "error", Message: "unknown action"}
 		}

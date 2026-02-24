@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"appcenter-agent/internal/config"
@@ -69,5 +70,55 @@ func TestGetStore(t *testing.T) {
 	}
 	if len(resp.Apps) != 1 || resp.Apps[0].ID != 5 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestReportTaskStatus_HTTPErrorIncludesDetail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "error",
+			"detail": "bad task payload",
+		})
+	}))
+	defer srv.Close()
+
+	zero := 0
+	c := NewClient(config.ServerConfig{URL: srv.URL})
+	_, err := c.ReportTaskStatus(context.Background(), "u1", "s1", 12, TaskStatusRequest{
+		Status:   "success",
+		Progress: 100,
+		Message:  "ok",
+		ExitCode: &zero,
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "bad task payload") {
+		t.Fatalf("err = %q, want detail", err.Error())
+	}
+	if !strings.Contains(err.Error(), "400") {
+		t.Fatalf("err = %q, want status code", err.Error())
+	}
+}
+
+func TestGetStore_HTTPErrorIncludesBodySnippet(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	defer srv.Close()
+
+	c := NewClient(config.ServerConfig{URL: srv.URL})
+	_, err := c.GetStore(context.Background(), "u1", "s1")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Fatalf("err = %q, want status code", err.Error())
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("err = %q, want body snippet", err.Error())
 	}
 }

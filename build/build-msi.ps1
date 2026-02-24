@@ -24,6 +24,11 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 $wxs = Join-Path $SourceDir "installer\\wix\\AppCenterAgent.wxs"
 if (-not (Test-Path $wxs)) { throw "Missing wix source: $wxs" }
 
+$remoteHelper = Join-Path $BuildDir "acremote-helper.exe"
+if (-not (Test-Path $remoteHelper)) {
+  throw "Missing remote helper: $remoteHelper. Run build/fetch-ultravnc-helper.ps1 first."
+}
+
 if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
   throw "candle.exe not found in PATH. Install WiX Toolset v3.x (e.g. choco install wixtoolset)."
 }
@@ -37,6 +42,7 @@ $msi = Join-Path $OutDir ("AppCenterAgent-" + $Version + ".msi")
 Write-Host "Building MSI version=$Version ..."
 
 & candle.exe `
+  "-ext" "WixUIExtension" `
   "-dProductVersion=$Version" `
   "-dBuildDir=$BuildDir" `
   "-dSourceDir=$SourceDir" `
@@ -47,6 +53,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 & light.exe `
+  "-ext" "WixUIExtension" `
   "-out" $msi `
   $obj
 if ($LASTEXITCODE -ne 0) {

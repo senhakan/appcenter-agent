@@ -4,7 +4,10 @@ package tray
 
 import (
 	"encoding/json"
-	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"appcenter-agent/internal/ipc"
@@ -13,10 +16,15 @@ import (
 
 type App struct {
 	ipc IPCClient
+
+	mu            sync.Mutex
+	lastIconState string
 }
 
 func NewApp() *App {
-	return &App{ipc: DefaultIPCClient{}}
+	return &App{
+		ipc: DefaultIPCClient{},
+	}
 }
 
 func Run() error {
@@ -32,22 +40,18 @@ func Run() error {
 }
 
 func (a *App) onReady() {
-	if b := appIconBytes(); len(b) > 0 {
-		systray.SetIcon(b)
-	}
+	// Default to "service down" until IPC confirms service is reachable.
+	a.setIconState("service_down")
 	systray.SetTitle("AppCenter")
 	systray.SetTooltip("AppCenter Agent")
 
-	mRefreshStatus := systray.AddMenuItem("Refresh Status", "Get service status")
-	mRefreshStore := systray.AddMenuItem("Refresh Store", "Load store applications")
-	mStore := systray.AddMenuItem("Store", "Store applications")
+	mRefreshStatus := systray.AddMenuItem("Durumu Yenile", "Servis durumunu güncelle")
+	mStore := systray.AddMenuItem("Mağaza", "Uygulama mağazasını aç")
 	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Exit", "Exit AppCenter Tray")
+	mQuit := systray.AddMenuItem("Çıkış", "AppCenter Tray'den çık")
 
-	storeItems := make(map[int]*systray.MenuItem)
-
+	// Periodic status refresh
 	go func() {
-		// Initial status pull
 		a.refreshStatus()
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
@@ -56,29 +60,15 @@ func (a *App) onReady() {
 		}
 	}()
 
+	// Menu click handler
 	go func() {
 		for {
 			select {
 			case <-mRefreshStatus.ClickedCh:
 				a.refreshStatus()
-			case <-mRefreshStore.ClickedCh:
-				apps, err := a.getStoreApps()
-				if err != nil {
-					systray.SetTooltip("Store refresh failed")
-					continue
-				}
-				for _, app := range apps {
-					if _, exists := storeItems[app.ID]; exists {
-						continue
-					}
-					item := mStore.AddSubMenuItem(appLabel(app), fmt.Sprintf("Install %s", app.DisplayName))
-					storeItems[app.ID] = item
-					go func(appID int, mi *systray.MenuItem) {
-						for range mi.ClickedCh {
-							_, _ = a.ipc.Send(ipc.NewRequest("install_from_store", appID))
-							systray.SetTooltip(fmt.Sprintf("Install request queued for app_id=%d", appID))
-						}
-					}(app.ID, item)
+			case <-mStore.ClickedCh:
+				if err := launchStoreWindowProcess(); err != nil {
+					trayDiagf("launch store process failed: %v", err)
 				}
 			case <-mQuit.ClickedCh:
 				systray.Quit()
@@ -93,35 +83,68 @@ func (a *App) onExit() {}
 func (a *App) refreshStatus() {
 	resp, err := a.ipc.Send(ipc.NewRequest("get_status", 0))
 	if err != nil || resp == nil || resp.Status != "ok" {
-		systray.SetTitle("AppCenter (offline)")
-		systray.SetTooltip("AppCenter Agent - service unreachable")
+		a.setIconState("service_down")
+		systray.SetTitle("AppCenter (çevrimdışı)")
+		systray.SetTooltip("AppCenter Agent - servise ulaşılamıyor")
 		return
 	}
 
 	payload, _ := json.Marshal(resp.Data)
 	var s StatusSnapshot
 	if err := json.Unmarshal(payload, &s); err != nil {
-		systray.SetTooltip("AppCenter Agent - status parse failed")
+		a.setIconState("service_down")
+		systray.SetTooltip("AppCenter Agent - durum okunamadı")
 		return
 	}
 
+	serverOK, _ := CheckServerHealth()
+	if serverOK {
+		a.setIconState("ok")
+	} else {
+		a.setIconState("server_down")
+	}
+
 	systray.SetTitle(statusTitle(s))
-	systray.SetTooltip(statusTooltip(s))
+	tt := statusTooltip(s)
+	if !serverOK {
+		tt += " (sunucuya ulaşılamıyor)"
+	}
+	systray.SetTooltip(tt)
 }
 
-func (a *App) getStoreApps() ([]StoreApp, error) {
-	resp, err := a.ipc.Send(ipc.NewRequest("get_store", 0))
+func (a *App) setIconState(state string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Avoid redundant SetIcon calls (systray writes icon bytes to temp files).
+	if a.lastIconState == state {
+		return
+	}
+	a.lastIconState = state
+
+	switch state {
+	case "ok":
+		systray.SetIcon(connectedIconBytes())
+	case "server_down":
+		systray.SetIcon(disconnectedIconBytes())
+	default:
+		systray.SetIcon(serviceDownIconBytes())
+	}
+}
+
+func launchStoreWindowProcess() error {
+	exe, err := os.Executable()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if resp.Status != "ok" {
-		return nil, fmt.Errorf(resp.Message)
+	exeDir := filepath.Dir(exe)
+	storeUI := filepath.Join(exeDir, "appcenter-store-ui.exe")
+	if _, err := os.Stat(storeUI); err == nil {
+		return exec.Command(storeUI).Start()
 	}
 
-	payload, _ := json.Marshal(resp.Data)
-	var store StorePayload
-	if err := json.Unmarshal(payload, &store); err != nil {
-		return nil, err
-	}
-	return store.Apps, nil
+	// Legacy fallback if store-ui binary is missing.
+	return exec.Command(exe, "open_store_legacy").Start()
 }
+
+func OpenStoreUI() error { return launchStoreWindowProcess() }

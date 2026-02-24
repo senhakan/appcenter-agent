@@ -23,6 +23,12 @@ if exist "%SRC%appcenter-tray-cli.exe" (
 if exist "%SRC%appcenter-update-helper.exe" (
     copy /Y "%SRC%appcenter-update-helper.exe" "%TARGET_BIN%\appcenter-update-helper.exe" >nul
 )
+if exist "%SRC%acremote-helper.exe" (
+    copy /Y "%SRC%acremote-helper.exe" "%TARGET_BIN%\acremote-helper.exe" >nul
+)
+if exist "%SRC%appcenter-store-ui.exe" (
+    copy /Y "%SRC%appcenter-store-ui.exe" "%TARGET_BIN%\appcenter-store-ui.exe" >nul
+)
 copy /Y "%SRC%config.yaml" "%TARGET_DATA%\config.yaml" >nul
 
 sc query AppCenterAgent >nul 2>&1
