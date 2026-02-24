@@ -125,8 +125,8 @@ type HeartbeatRequest struct {
 	InstalledApps []InstalledApp `json:"installed_apps"`
 	InventoryHash string         `json:"inventory_hash,omitempty"`
 	// Always send this field so the server can clear stale session data.
-	LoggedInSessions []LoggedInSession `json:"logged_in_sessions"`
-	SystemProfile    *SystemProfile    `json:"system_profile,omitempty"`
+	LoggedInSessions []LoggedInSession    `json:"logged_in_sessions"`
+	SystemProfile    *SystemProfile       `json:"system_profile,omitempty"`
 	RemoteSupport    *RemoteSupportStatus `json:"remote_support,omitempty"`
 }
 
@@ -344,7 +344,7 @@ func (c *Client) ReportRemoteReady(
 		"X-Agent-Secret": secret,
 	}
 	path := fmt.Sprintf("/api/v1/agent/remote-support/%d/ready", sessionID)
-	return c.postJSON(ctx, path, map[string]any{"vnc_ready": true, "local_vnc_port": 5900}, headers, &MessageResponse{})
+	return c.postJSON(ctx, path, map[string]any{"vnc_ready": true}, headers, &MessageResponse{})
 }
 
 func (c *Client) ReportRemoteEnded(

@@ -2,6 +2,7 @@
 *.dll
 *.so
 *.dylib
+!rshelper.exe
 build/*.exe
 build/*.ico
 build/config.yaml

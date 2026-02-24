@@ -24,7 +24,7 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 $wxs = Join-Path $SourceDir "installer\\wix\\AppCenterAgent.wxs"
 if (-not (Test-Path $wxs)) { throw "Missing wix source: $wxs" }
 
-$remoteHelper = Join-Path $BuildDir "acremote-helper.exe"
+$remoteHelper = Join-Path $BuildDir "rshelper.exe"
 if (-not (Test-Path $remoteHelper)) {
   throw "Missing remote helper: $remoteHelper. Run build/fetch-ultravnc-helper.ps1 first."
 }

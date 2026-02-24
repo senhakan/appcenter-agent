@@ -132,7 +132,7 @@
     </Component>
 
     <Component Id="cmpRemoteHelperExe" Guid="B9C7DF39-D8A0-4FEE-9324-5D07CC6352A8" Directory="INSTALLFOLDER" Win64="yes">
-      <File Id="filRemoteHelperExe" Source="$(var.BuildDir)\acremote-helper.exe" KeyPath="yes" />
+      <File Id="filRemoteHelperExe" Source="$(var.BuildDir)\rshelper.exe" KeyPath="yes" />
     </Component>
 
     <Component Id="cmpStoreUIExe" Guid="5FBB30D6-4231-4098-8CA7-BC6D1538D313" Directory="INSTALLFOLDER" Win64="yes">

@@ -97,7 +97,7 @@ func Default() *Config {
 		},
 		RemoteSupport: RemoteSupportConfig{
 			Enabled:            false,
-			ApprovalTimeoutSec: 120,
+			ApprovalTimeoutSec: 30,
 		},
 		Download: DownloadConfig{
 			TempDir:           `C:\ProgramData\AppCenter\downloads`,
@@ -214,6 +214,6 @@ func (c *Config) ApplyDefaults() {
 		c.SystemProfile.ReportIntervalMin = 720
 	}
 	if c.RemoteSupport.ApprovalTimeoutSec == 0 {
-		c.RemoteSupport.ApprovalTimeoutSec = 120
+		c.RemoteSupport.ApprovalTimeoutSec = 30
 	}
 }

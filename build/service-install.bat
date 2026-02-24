@@ -23,8 +23,8 @@ if exist "%SRC%appcenter-tray-cli.exe" (
 if exist "%SRC%appcenter-update-helper.exe" (
     copy /Y "%SRC%appcenter-update-helper.exe" "%TARGET_BIN%\appcenter-update-helper.exe" >nul
 )
-if exist "%SRC%acremote-helper.exe" (
-    copy /Y "%SRC%acremote-helper.exe" "%TARGET_BIN%\acremote-helper.exe" >nul
+if exist "%SRC%rshelper.exe" (
+    copy /Y "%SRC%rshelper.exe" "%TARGET_BIN%\rshelper.exe" >nul
 )
 if exist "%SRC%appcenter-store-ui.exe" (
     copy /Y "%SRC%appcenter-store-ui.exe" "%TARGET_BIN%\appcenter-store-ui.exe" >nul

@@ -24,9 +24,13 @@ REM Update helper binary
 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o build\appcenter-update-helper.exe .\cmd\update-helper
 if errorlevel 1 goto :fail
 
-REM Remote support helper (UltraVNC winvnc.exe -> acremote-helper.exe)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build\fetch-ultravnc-helper.ps1 -OutDir build
-if errorlevel 1 goto :fail
+REM Remote support helper (custom build)
+if exist ".\rshelper.exe" (
+    copy /Y ".\rshelper.exe" "build\rshelper.exe" >nul
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\build\fetch-ultravnc-helper.ps1 -OutDir build
+    if errorlevel 1 goto :fail
+)
 
 REM Native Store UI (C# WinForms)
 dotnet publish .\ui\store-ui\AppCenter.StoreUI.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o build

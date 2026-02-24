@@ -13,7 +13,7 @@ $zipPath = Join-Path $env:TEMP ("UltraVNC_" + $Version + ".zip")
 $extractDir = Join-Path $env:TEMP ("UltraVNC_" + $Version + "_extract")
 $zipUrl = "https://uvnc.eu/download/$Version/UltraVNC_${Version}.zip"
 $sourceExe = Join-Path $extractDir "x64\\winvnc.exe"
-$targetExe = Join-Path $OutDir "acremote-helper.exe"
+$targetExe = Join-Path $OutDir "rshelper.exe"
 
 Write-Host "Downloading UltraVNC helper from $zipUrl ..."
 Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
