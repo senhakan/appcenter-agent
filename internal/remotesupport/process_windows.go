@@ -32,6 +32,7 @@ func startHelperProcess(exePath string, args []string) (*os.Process, error) {
 			return nil, fmt.Errorf("resolve interactive user token (session=%d): %w", sessionID, err)
 		}
 	}
+	userToken = preferElevatedLinkedToken(userToken)
 	defer userToken.Close()
 
 	cmdLine, err := windows.UTF16PtrFromString(buildWindowsCmdline(exePath, args))
@@ -165,6 +166,20 @@ func duplicatePrimaryToken(src windows.Token) (windows.Token, error) {
 		return 0, err
 	}
 	return primary, nil
+}
+
+func preferElevatedLinkedToken(base windows.Token) windows.Token {
+	linked, err := base.GetLinkedToken()
+	if err != nil {
+		return base
+	}
+	// For UAC-admin users, base token is usually filtered (medium) and linked token is elevated.
+	if linked.IsElevated() {
+		_ = base.Close()
+		return linked
+	}
+	_ = linked.Close()
+	return base
 }
 
 func buildWindowsCmdline(exePath string, args []string) string {
