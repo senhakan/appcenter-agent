@@ -12,6 +12,9 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
   - `appcenter-tray-cli.exe` (console) ile `get_status/get_store` ciktilari PowerShell'de gorunur
   - Tray autostart: MSI icinde HKLM Run kaydi ile all-users logon'da baslar
   - Duplicate instance: mutex ile engellenir
+  - Server policy (`store_tray_enabled`) ile service tarafindan yonetilir:
+    - `true` ise tray acik tutulur (kapanirsa yeniden acilir)
+    - `false` ise tray kapatilir
 - Self-update:
   - Update staging yapilir (`pending_update.json`)
   - `update.auto_apply=true` ise `appcenter-update-helper.exe` ile staged update apply + service restart yapilir
@@ -49,6 +52,13 @@ Bu dokuman, bu repoda su ana kadar yapilan islerin uzerine sorunsuz devam edebil
   - Bagli gorunup goruntu gelmeyen senaryolar goruldu, `vnc.html` tabanli mode gecildi.
 
 Detay kronoloji: `docs/WORKLOG.md`
+
+### Store Grubu Kurgusu (2026-02-24)
+
+- Server'da `Store` adli sistem grubu tanimlidir.
+- Bu grup UI/API seviyesinde silinemez ve adi degistirilemez.
+- Ajan bu gruptaysa heartbeat config'te `store_tray_enabled=true` alir.
+- Ajan gruptan cikarildiginda `store_tray_enabled=false` olur ve tray kapatilir.
 
 ## Windows Test Ortami
 

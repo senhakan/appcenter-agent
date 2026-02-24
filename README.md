@@ -124,6 +124,14 @@ Pipeline adimlari:
   - `appcenter-tray-cli.exe get_store`
   - `appcenter-tray-cli.exe install_from_store 12`
 
+## Store Grubu Policy (2026-02-24)
+
+- Server heartbeat `config` alaninda `store_tray_enabled` gonderir.
+- Agent service bu policy'i uygular:
+  - `store_tray_enabled=true`: `appcenter-tray.exe` kullanici oturumunda calisiyor durumda tutulur.
+  - `store_tray_enabled=false`: `appcenter-tray.exe` sonlandirilir.
+- Service, tray kapanirsa sonraki heartbeat dongulerinde otomatik yeniden baslatir.
+
 ## Dokumanlar
 
 - Teknik spesifikasyon: `AppCenter_Technical_Specification_v1_1.md`
