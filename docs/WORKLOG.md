@@ -737,3 +737,32 @@ Bu dosya her teknik degisiklikten sonra guncellenir:
   - noVNC token dosyasi yazma izni problemi yasandi:
     - `PermissionError: /opt/appcenter/novnc/tokens.txt.tmp`
     - Cozum: dizin/dosya sahipligi `appcenter:appcenter` olarak duzeltildi.
+
+### 2026-02-26 Remote support onay iptal akisi + popup iyilestirmesi
+
+- Agent runtime:
+  - `internal/remotesupport/session.go`
+    - Pending onay surecinde session state tekrar kontrolu eklendi (iptal edilen session icin stale approve engeli).
+    - `EndSession`/`reset` tarafinda onay popup kapatma tetigi eklendi.
+  - `internal/remotesupport/dialog_windows.go`
+    - WTSSendMessage tabanli akistan vazgecilip kullanici oturumunda calisan iptal-edilebilir popup akisina gecildi.
+    - Popup response dosya bazli takip ediliyor (Yes/No/timeout).
+    - Cancel/end sinyalinde popup process zorla sonlandirilabiliyor.
+    - Mesaj satir kirilimlari duzeltildi (`[Environment]::NewLine`) ve escape karakter gorunumu giderildi.
+  - `internal/remotesupport/process_windows.go`
+    - Aktif kullanici session secimi icin gerekli WTS session helper fonksiyonlari bu dosyaya tasindi.
+  - `internal/remotesupport/dialog_nonwindows.go`
+    - Windows disi build icin `CloseApprovalDialogFromService` no-op eklendi.
+
+- Versiyon:
+  - `configs/config.yaml.template` -> `agent.version: 0.1.28`
+
+- Dagitim:
+  - Test host `10.6.20.172` uzerinde `appcenter-service.exe` manuel guncellendi ve `AppCenterAgent` service restart edildi.
+  - Server publish script ile update paketi yayinlandi:
+    - `version: 0.1.28`
+    - `filename: agent_0.1.28_ddf0b626.exe`
+
+- Sonuc:
+  - Pending approval durumunda browser kapanisi / iptal aksiyonlarinda onay popup anlik kapanma davranisi dogrulandi.
+  - Popup metninde alt satir kirilimlari duzgun gorunuyor.
