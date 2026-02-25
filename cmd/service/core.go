@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"appcenter-agent/internal/api"
@@ -20,6 +22,7 @@ import (
 	"appcenter-agent/internal/ipc"
 	"appcenter-agent/internal/queue"
 	"appcenter-agent/internal/remotesupport"
+	"appcenter-agent/internal/runtimeupdate"
 	"appcenter-agent/internal/system"
 	"appcenter-agent/internal/updater"
 	"appcenter-agent/pkg/utils"
@@ -59,7 +62,14 @@ func runAgent(ctx context.Context, cfgPath string) error {
 
 	serviceExe, _ := os.Executable()
 	traySup := newTraySupervisor(serviceExe, logger)
-	storeTrayEnabled := false
+	var storeTrayEnabled atomic.Bool
+
+	runtimeMgr := runtimeupdate.NewManager(filepath.Dir(serviceExe), logger, func() {
+		if storeTrayEnabled.Load() {
+			traySup.SetEnabled(true)
+		}
+	})
+	go runtimeMgr.Start(ctx)
 
 	taskQueue := queue.NewTaskQueue(3)
 	pollResults := make(chan heartbeat.PollResult, 8)
@@ -158,16 +168,21 @@ func runAgent(ctx context.Context, cfgPath string) error {
 						// unexpected tray exits are healed automatically.
 						if b {
 							traySup.SetEnabled(true)
-							if !storeTrayEnabled {
+							if !storeTrayEnabled.Load() {
 								logger.Printf("tray supervisor: store_tray_enabled=true")
 							}
-						} else if storeTrayEnabled {
+						} else if storeTrayEnabled.Load() {
 							traySup.SetEnabled(false)
 							logger.Printf("tray supervisor: store_tray_enabled=false")
 						}
-						storeTrayEnabled = b
+						storeTrayEnabled.Store(b)
 					}
 				}
+				runtimeMgr.UpdateConfig(runtimeupdate.Config{
+					BaseURL:     configString(result.Config, "runtime_update_base_url", ""),
+					IntervalMin: configInt(result.Config, "runtime_update_interval_min", 60),
+					JitterSec:   configInt(result.Config, "runtime_update_jitter_sec", 300),
+				})
 			}
 
 			if sessionMgr != nil && result.RemoteSupportRequest != nil {
@@ -217,6 +232,36 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			}
 		}
 	}
+}
+
+func configInt(m map[string]any, key string, def int) int {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return def
+	}
+	switch t := v.(type) {
+	case float64:
+		return int(t)
+	case int:
+		return t
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(t))
+		if err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+func configString(m map[string]any, key, def string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return def
+	}
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return def
 }
 
 func buildIPCHandler(
