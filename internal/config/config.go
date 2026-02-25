@@ -17,7 +17,6 @@ type Config struct {
 	Download      DownloadConfig      `yaml:"download"`
 	Install       InstallConfig       `yaml:"install"`
 	Update        UpdateConfig        `yaml:"update"`
-	WorkHours     WorkHoursConfig     `yaml:"work_hours"`
 	Logging       LoggingConfig       `yaml:"logging"`
 }
 
@@ -59,11 +58,6 @@ type UpdateConfig struct {
 	ServiceName string `yaml:"service_name"`
 	// HelperPath is the path to the update helper executable on Windows.
 	HelperPath string `yaml:"helper_path"`
-}
-
-type WorkHoursConfig struct {
-	StartUTC string `yaml:"start_utc"`
-	EndUTC   string `yaml:"end_utc"`
 }
 
 type RemoteSupportConfig struct {
@@ -111,10 +105,6 @@ func Default() *Config {
 			AutoApply:   true,
 			ServiceName: "AppCenterAgent",
 			HelperPath:  `C:\Program Files\AppCenter\appcenter-update-helper.exe`,
-		},
-		WorkHours: WorkHoursConfig{
-			StartUTC: "09:00",
-			EndUTC:   "18:00",
 		},
 		Logging: LoggingConfig{
 			Level:      "info",

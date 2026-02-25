@@ -11,9 +11,7 @@ import (
 )
 
 func defaultConfig() config.Config {
-	return config.Config{
-		WorkHours: config.WorkHoursConfig{StartUTC: "09:00", EndUTC: "18:00"},
-	}
+	return config.Config{}
 }
 
 func TestProcessOneSuccessSetsAppsChanged(t *testing.T) {
@@ -86,24 +84,8 @@ func TestRetryAndMaxRetries(t *testing.T) {
 	}
 }
 
-func TestWorkHoursAndForceUpdate(t *testing.T) {
-	cfg := defaultConfig()
-
-	if !isWithinWorkHours(time.Date(2026, 2, 14, 9, 0, 0, 0, time.UTC), cfg.WorkHours.StartUTC, cfg.WorkHours.EndUTC) {
-		t.Fatal("09:00 should be within work hours")
-	}
-	if isWithinWorkHours(time.Date(2026, 2, 14, 22, 0, 0, 0, time.UTC), cfg.WorkHours.StartUTC, cfg.WorkHours.EndUTC) {
-		t.Fatal("22:00 should be outside work hours")
-	}
-
-	normal := api.Command{TaskID: 1, ForceUpdate: false}
-	forced := api.Command{TaskID: 2, ForceUpdate: true}
-	outside := time.Date(2026, 2, 14, 22, 0, 0, 0, time.UTC)
-
-	if shouldExecuteNow(normal, outside, cfg.WorkHours.StartUTC, cfg.WorkHours.EndUTC) {
-		t.Fatal("normal task should not run outside work hours")
-	}
-	if !shouldExecuteNow(forced, outside, cfg.WorkHours.StartUTC, cfg.WorkHours.EndUTC) {
-		t.Fatal("force update should bypass work hours")
+func TestShouldExecuteNowAlwaysTrue(t *testing.T) {
+	if !shouldExecuteNow(api.Command{TaskID: 1}) {
+		t.Fatal("task should always execute")
 	}
 }

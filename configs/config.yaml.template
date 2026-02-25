@@ -30,10 +30,6 @@ update:
   service_name: "AppCenterAgent"
   helper_path: "C:\\Program Files\\AppCenter\\appcenter-update-helper.exe"
 
-work_hours:
-  start_utc: "09:00"
-  end_utc: "18:00"
-
 logging:
   level: "info"
   file: "C:\\ProgramData\\AppCenter\\logs\\agent.log"

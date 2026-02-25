@@ -2,7 +2,6 @@ package queue
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
@@ -105,11 +104,11 @@ func (q *TaskQueue) ConsumeAppsChanged() (bool, []api.InstalledApp) {
 func (q *TaskQueue) ProcessOne(
 	ctx context.Context,
 	serverTime time.Time,
-	cfg config.Config,
+	_ config.Config,
 	execute ExecuteFunc,
 	report ReportFunc,
 ) bool {
-	task, ok := q.nextRunnable(serverTime.UTC(), cfg)
+	task, ok := q.nextRunnable(serverTime.UTC())
 	if !ok {
 		return false
 	}
@@ -158,7 +157,7 @@ func (q *TaskQueue) ProcessOne(
 	return true
 }
 
-func (q *TaskQueue) nextRunnable(serverTime time.Time, cfg config.Config) (api.Command, bool) {
+func (q *TaskQueue) nextRunnable(serverTime time.Time) (api.Command, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -173,7 +172,7 @@ func (q *TaskQueue) nextRunnable(serverTime time.Time, cfg config.Config) (api.C
 				continue
 			}
 		}
-		if !shouldExecuteNow(t.Command, serverTime, cfg.WorkHours.StartUTC, cfg.WorkHours.EndUTC) {
+		if !shouldExecuteNow(t.Command) {
 			continue
 		}
 		candidates = append(candidates, t.Command)
@@ -231,37 +230,6 @@ func (q *TaskQueue) handleSuccess(task api.Command) {
 	}
 }
 
-func shouldExecuteNow(task api.Command, serverTime time.Time, workStartUTC, workEndUTC string) bool {
-	if task.ForceUpdate {
-		return true
-	}
-	return isWithinWorkHours(serverTime, workStartUTC, workEndUTC)
-}
-
-func isWithinWorkHours(nowUTC time.Time, startHHMM, endHHMM string) bool {
-	startMinutes, err := parseHHMM(startHHMM)
-	if err != nil {
-		return true
-	}
-	endMinutes, err := parseHHMM(endHHMM)
-	if err != nil {
-		return true
-	}
-
-	current := nowUTC.UTC().Hour()*60 + nowUTC.UTC().Minute()
-
-	if startMinutes <= endMinutes {
-		// Use exclusive upper bound: a task starting at exactly endMinutes
-		// (e.g. 18:00) would run but not finish within work hours.
-		return current >= startMinutes && current < endMinutes
-	}
-	return current >= startMinutes || current <= endMinutes
-}
-
-func parseHHMM(s string) (int, error) {
-	t, err := time.Parse("15:04", s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid time format %q: %w", s, err)
-	}
-	return t.Hour()*60 + t.Minute(), nil
+func shouldExecuteNow(_ api.Command) bool {
+	return true
 }

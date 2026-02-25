@@ -179,7 +179,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 					}
 				}
 				runtimeMgr.UpdateConfig(runtimeupdate.Config{
-					BaseURL:     configString(result.Config, "runtime_update_base_url", ""),
+					BaseURL:     runtimeUpdateBaseURL(cfg.Server.URL),
 					IntervalMin: configInt(result.Config, "runtime_update_interval_min", 60),
 					JitterSec:   configInt(result.Config, "runtime_update_jitter_sec", 300),
 				})
@@ -253,15 +253,8 @@ func configInt(m map[string]any, key string, def int) int {
 	return def
 }
 
-func configString(m map[string]any, key, def string) string {
-	v, ok := m[key]
-	if !ok || v == nil {
-		return def
-	}
-	if s, ok := v.(string); ok {
-		return strings.TrimSpace(s)
-	}
-	return def
+func runtimeUpdateBaseURL(serverURL string) string {
+	return strings.TrimRight(strings.TrimSpace(serverURL), "/") + "/uploads/agent_runtime"
 }
 
 func buildIPCHandler(
