@@ -105,9 +105,12 @@ func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bo
 	}
 	log.Printf("remote support dialog: candidate sessions=%v timeout=%ds", sessions, timeoutSec)
 
+	if reason == "" {
+		reason = "Belirtilmedi"
+	}
 	title, _ := syscall.UTF16FromString("AppCenter - Uzak Destek Istegi")
 	message, _ := syscall.UTF16FromString(fmt.Sprintf(
-		"%s bilgisayariniza uzaktan baglanmak istiyor.\n\nSebep: %s\n\nBaglantiya izin verilsin mi?",
+		"%s asagidaki sebep ile ekraniniza baglanmak istiyor.\n\n%s\n\nOnay veriyor musunuz?",
 		adminName,
 		reason,
 	))

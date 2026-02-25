@@ -63,6 +63,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	serviceExe, _ := os.Executable()
 	traySup := newTraySupervisor(serviceExe, logger)
 	var storeTrayEnabled atomic.Bool
+	var remoteSupportEnabled atomic.Bool
 
 	runtimeMgr := runtimeupdate.NewManager(filepath.Dir(serviceExe), logger, func() {
 		if storeTrayEnabled.Load() {
@@ -79,21 +80,24 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	invManager := inventory.NewManager(logger)
 	invManager.ForceScan()
 
-	var sessionMgr *remotesupport.SessionManager
-	if cfg.RemoteSupport.Enabled {
-		sessionMgr = remotesupport.NewSessionManager(
-			client,
-			cfg.Agent.UUID,
-			cfg.Agent.SecretKey,
-			cfg.RemoteSupport.ApprovalTimeoutSec,
-			logger,
-		)
-		logger.Printf("remote support: enabled")
-	} else {
-		logger.Printf("remote support: disabled by config")
+	// Remote support session manager stays available regardless of local config flag.
+	// The server controls whether requests are sent; if no request arrives, manager is idle.
+	sessionMgr := remotesupport.NewSessionManager(
+		client,
+		cfg.Agent.UUID,
+		cfg.Agent.SecretKey,
+		cfg.RemoteSupport.ApprovalTimeoutSec,
+		logger,
+	)
+	logger.Printf("remote support: manager ready")
+	remoteSupportEnabled.Store(cfg.RemoteSupport.Enabled)
+	logger.Printf("remote support: enabled=%t (initial)", remoteSupportEnabled.Load())
+	var remoteProvider heartbeat.RemoteSupportProvider
+	if sessionMgr != nil {
+		remoteProvider = sessionMgr
 	}
 
-	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted, sessionMgr))
+	pipeServer, pipeErr := ipc.StartPipeServer(buildIPCHandler(client, cfg, taskQueue, logger, serviceStarted, sessionMgr, &remoteSupportEnabled))
 	if pipeErr != nil {
 		logger.Printf("named pipe server not started: %v", pipeErr)
 	} else {
@@ -101,7 +105,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		logger.Printf("named pipe server started: %s", ipc.PipeName)
 	}
 
-	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager, sessionMgr)
+	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager, remoteProvider)
 	go sender.Start(ctx)
 
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
@@ -178,6 +182,15 @@ func runAgent(ctx context.Context, cfgPath string) error {
 						storeTrayEnabled.Store(b)
 					}
 				}
+				if v, ok := result.Config["remote_support_enabled"]; ok {
+					if b, ok := v.(bool); ok {
+						prev := remoteSupportEnabled.Load()
+						remoteSupportEnabled.Store(b)
+						if prev != b {
+							logger.Printf("remote support: remote_support_enabled=%t", b)
+						}
+					}
+				}
 				runtimeMgr.UpdateConfig(runtimeupdate.Config{
 					BaseURL:     runtimeUpdateBaseURL(cfg.Server.URL),
 					IntervalMin: configInt(result.Config, "runtime_update_interval_min", 60),
@@ -185,8 +198,10 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				})
 			}
 
-			if sessionMgr != nil && result.RemoteSupportRequest != nil {
+			if sessionMgr != nil && result.RemoteSupportRequest != nil && remoteSupportEnabled.Load() {
 				go sessionMgr.HandleRequest(ctx, *result.RemoteSupportRequest)
+			} else if result.RemoteSupportRequest != nil && !remoteSupportEnabled.Load() {
+				logger.Printf("remote support: request ignored (disabled by server policy)")
 			}
 			if sessionMgr != nil && result.RemoteSupportEnd != nil {
 				go sessionMgr.HandleEndSignal(ctx, *result.RemoteSupportEnd)
@@ -264,6 +279,7 @@ func buildIPCHandler(
 	logger *log.Logger,
 	startedAt time.Time,
 	sessionMgr *remotesupport.SessionManager,
+	remoteSupportEnabled *atomic.Bool,
 ) ipc.Handler {
 	return func(req ipc.Request) ipc.Response {
 		switch strings.ToLower(req.Action) {
@@ -317,7 +333,8 @@ func buildIPCHandler(
 				},
 			}
 		case "remote_support_status":
-			if !cfg.RemoteSupport.Enabled || sessionMgr == nil {
+			enabled := sessionMgr != nil && remoteSupportEnabled != nil && remoteSupportEnabled.Load()
+			if !enabled {
 				return ipc.Response{
 					Status: "ok",
 					Data: map[string]any{
@@ -338,7 +355,7 @@ func buildIPCHandler(
 				},
 			}
 		case "remote_support_end":
-			if !cfg.RemoteSupport.Enabled || sessionMgr == nil {
+			if sessionMgr == nil {
 				return ipc.Response{Status: "error", Message: "remote support disabled"}
 			}
 			go sessionMgr.EndSession(context.Background(), "user")

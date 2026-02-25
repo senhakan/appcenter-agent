@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"appcenter-agent/internal/api"
+	"appcenter-agent/internal/system"
 )
 
 type SessionState string
@@ -64,18 +65,27 @@ func NewSessionManager(
 }
 
 func (sm *SessionManager) State() SessionState {
+	if sm == nil {
+		return StateIdle
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.state
 }
 
 func (sm *SessionManager) CurrentSessionID() int {
+	if sm == nil {
+		return 0
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.session
 }
 
 func (sm *SessionManager) HelperStatus() (bool, int) {
+	if sm == nil || sm.vnc == nil {
+		return false, 0
+	}
 	return sm.vnc.Status()
 }
 
@@ -118,7 +128,8 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		return
 	}
 
-	approveResp, err := sm.client.ApproveRemoteSession(ctx, sm.agentUUID, sm.secret, req.SessionID, approved)
+	monitorCount := system.MonitorCount()
+	approveResp, err := sm.client.ApproveRemoteSession(ctx, sm.agentUUID, sm.secret, req.SessionID, approved, monitorCount)
 	if err != nil {
 		sm.logger.Printf("remote support: approve report failed: %v", err)
 		sm.reset()

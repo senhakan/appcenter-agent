@@ -320,6 +320,7 @@ func (c *Client) ApproveRemoteSession(
 	agentUUID, secret string,
 	sessionID int,
 	approved bool,
+	monitorCount int,
 ) (*ApproveRemoteSessionResponse, error) {
 	headers := map[string]string{
 		"X-Agent-UUID":   agentUUID,
@@ -328,7 +329,7 @@ func (c *Client) ApproveRemoteSession(
 
 	var out ApproveRemoteSessionResponse
 	path := fmt.Sprintf("/api/v1/agent/remote-support/%d/approve", sessionID)
-	if err := c.postJSON(ctx, path, map[string]bool{"approved": approved}, headers, &out); err != nil {
+	if err := c.postJSON(ctx, path, map[string]any{"approved": approved, "monitor_count": monitorCount}, headers, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
