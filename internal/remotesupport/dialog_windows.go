@@ -4,142 +4,124 @@ package remotesupport
 
 import (
 	"fmt"
-	"log"
-	"sort"
-	"syscall"
-	"unsafe"
-)
-
-var (
-	wtsapi32                         = syscall.NewLazyDLL("wtsapi32.dll")
-	procWTSSendMessageW              = wtsapi32.NewProc("WTSSendMessageW")
-	procWTSEnumerateSessionsW        = wtsapi32.NewProc("WTSEnumerateSessionsW")
-	procWTSFreeMemory                = wtsapi32.NewProc("WTSFreeMemory")
-	kernel32                         = syscall.NewLazyDLL("kernel32.dll")
-	procWTSGetActiveConsoleSessionID = kernel32.NewProc("WTSGetActiveConsoleSessionId")
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
-	wtsCurrentServerHandle = 0
-	mbYesNo                = 0x00000004
-	mbIconQuestion         = 0x00000020
-	idYes                  = 6
-	wtsActive              = 0
+	idYes               = 6
+	approvalDialogTitle = "AppCenter - Uzak Destek Istegi"
 )
 
-type wtsSessionInfo struct {
-	SessionID       uint32
-	pWinStationName *uint16
-	State           uint32
-}
+var (
+	approvalMu      sync.Mutex
+	approvalProc    *os.Process
+	approvalOutFile string
+)
 
-func candidateSessionIDs() []uint32 {
-	ids := map[uint32]struct{}{}
-
-	var pp uintptr
-	var count uint32
-	ret, _, _ := procWTSEnumerateSessionsW.Call(
-		wtsCurrentServerHandle,
-		0,
-		1,
-		uintptr(unsafe.Pointer(&pp)),
-		uintptr(unsafe.Pointer(&count)),
-	)
-	if ret != 0 && pp != 0 && count > 0 {
-		defer procWTSFreeMemory.Call(pp)
-		size := unsafe.Sizeof(wtsSessionInfo{})
-		for i := uint32(0); i < count; i++ {
-			p := (*wtsSessionInfo)(unsafe.Pointer(pp + uintptr(i)*size))
-			if p.State == wtsActive {
-				ids[p.SessionID] = struct{}{}
-			}
-		}
-	}
-
-	consoleID, _, _ := procWTSGetActiveConsoleSessionID.Call()
-	if consoleID != 0xFFFFFFFF {
-		ids[uint32(consoleID)] = struct{}{}
-	}
-
-	out := make([]uint32, 0, len(ids))
-	for sid := range ids {
-		out = append(out, sid)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out
-}
-
-func orderedSessionIDs() []uint32 {
-	all := candidateSessionIDs()
-	if len(all) <= 1 {
-		return all
-	}
-	consoleID, _, _ := procWTSGetActiveConsoleSessionID.Call()
-	console := uint32(0xFFFFFFFF)
-	if consoleID != 0xFFFFFFFF {
-		console = uint32(consoleID)
-	}
-
-	out := make([]uint32, 0, len(all))
-	if console != 0xFFFFFFFF {
-		for _, sid := range all {
-			if sid == console {
-				out = append(out, sid)
-				break
-			}
-		}
-	}
-	for _, sid := range all {
-		if sid != console {
-			out = append(out, sid)
-		}
-	}
-	return out
-}
-
-// ShowApprovalDialogFromService shows a user approval dialog from service context.
+// ShowApprovalDialogFromService shows a cancelable user approval dialog from service context.
+// It launches a popup process in active user session and waits for response file.
 func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bool, error) {
-	sessions := orderedSessionIDs()
-	if len(sessions) == 0 {
-		return false, fmt.Errorf("no active user session")
+	if timeoutSec <= 0 {
+		timeoutSec = 30
 	}
-	log.Printf("remote support dialog: candidate sessions=%v timeout=%ds", sessions, timeoutSec)
-
-	if reason == "" {
+	if strings.TrimSpace(adminName) == "" {
+		adminName = "Yonetici"
+	}
+	if strings.TrimSpace(reason) == "" {
 		reason = "Belirtilmedi"
 	}
-	title, _ := syscall.UTF16FromString("AppCenter - Uzak Destek Istegi")
-	message, _ := syscall.UTF16FromString(fmt.Sprintf(
-		"%s asagidaki sebep ile ekraniniza baglanmak istiyor.\n\n%s\n\nOnay veriyor musunuz?",
-		adminName,
-		reason,
-	))
 
-	var response uint32
-	var lastErr error
-	for _, sessionID := range sessions {
-		response = 0
-		ret, _, err := procWTSSendMessageW.Call(
-			wtsCurrentServerHandle,
-			uintptr(sessionID),
-			uintptr(unsafe.Pointer(&title[0])),
-			uintptr(len(title)*2),
-			uintptr(unsafe.Pointer(&message[0])),
-			uintptr(len(message)*2),
-			uintptr(mbYesNo|mbIconQuestion),
-			uintptr(timeoutSec),
-			uintptr(unsafe.Pointer(&response)),
-			uintptr(1), // wait for response
-		)
-		if ret != 0 {
-			log.Printf("remote support dialog: session=%d response=%d", sessionID, response)
-			return response == idYes, nil
+	_ = CloseApprovalDialogFromService()
+
+	adminName = psSingleQuote(adminName)
+	reason = psSingleQuote(reason)
+	title := psSingleQuote(approvalDialogTitle)
+
+	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("appcenter_rs_approval_%d.txt", time.Now().UnixNano()))
+	outPath = strings.ReplaceAll(outPath, "\\", "\\\\")
+
+	// WScript.Shell Popup return codes:
+	// 6 = Yes, 7 = No, -1 = timeout
+	ps := "$ws=New-Object -ComObject WScript.Shell; " +
+		"$nl=[Environment]::NewLine; " +
+		"$msg='" + adminName + " asagidaki sebep ile ekraniniza baglanmak istiyor.' + $nl + $nl + '" + reason + "' + $nl + $nl + 'Onay veriyor musunuz?'; " +
+		"$r=$ws.Popup($msg," + strconv.Itoa(timeoutSec) + ",'" + title + "',0x24); " +
+		"Set-Content -Path '" + outPath + "' -Value $r -Encoding ascii -Force"
+
+	psExe := `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
+	proc, err := StartProcessInActiveUserSession(psExe, []string{
+		"-NoProfile",
+		"-NonInteractive",
+		"-WindowStyle",
+		"Hidden",
+		"-ExecutionPolicy",
+		"Bypass",
+		"-Command",
+		ps,
+	})
+	if err != nil {
+		return false, fmt.Errorf("start approval popup: %w", err)
+	}
+
+	approvalMu.Lock()
+	approvalProc = proc
+	approvalOutFile = outPath
+	approvalMu.Unlock()
+
+	deadline := time.Now().Add(time.Duration(timeoutSec+2) * time.Second)
+	for time.Now().Before(deadline) {
+		if code, ok := readApprovalCode(outPath); ok {
+			_ = CloseApprovalDialogFromService()
+			return code == idYes, nil
 		}
-		log.Printf("remote support dialog: session=%d send failed: %v", sessionID, err)
-		lastErr = err
+		time.Sleep(250 * time.Millisecond)
 	}
-	if lastErr != nil {
-		return false, fmt.Errorf("WTSSendMessage failed for all sessions: %v", lastErr)
+
+	_ = CloseApprovalDialogFromService()
+	return false, nil
+}
+
+// CloseApprovalDialogFromService force-closes the active approval popup if present.
+func CloseApprovalDialogFromService() error {
+	approvalMu.Lock()
+	proc := approvalProc
+	out := approvalOutFile
+	approvalProc = nil
+	approvalOutFile = ""
+	approvalMu.Unlock()
+
+	if proc != nil {
+		_ = proc.Kill()
+		_, _ = proc.Wait()
 	}
-	return false, fmt.Errorf("WTSSendMessage failed for all sessions")
+	if out != "" {
+		_ = os.Remove(out)
+	}
+	return nil
+}
+
+func readApprovalCode(path string) (int, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	s := strings.TrimSpace(string(b))
+	if s == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func psSingleQuote(s string) string {
+	// PowerShell single-quoted literal escaping.
+	return strings.ReplaceAll(s, "'", "''")
 }

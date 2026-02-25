@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -19,8 +20,24 @@ var (
 	procDestroyEnvironmentBlock = userenvDLL.NewProc("DestroyEnvironmentBlock")
 
 	wtsapi32DLL           = windows.NewLazySystemDLL("wtsapi32.dll")
+	procWTSEnumerateSessionsW = wtsapi32DLL.NewProc("WTSEnumerateSessionsW")
+	procWTSFreeMemory         = wtsapi32DLL.NewProc("WTSFreeMemory")
 	procWTSQueryUserToken = wtsapi32DLL.NewProc("WTSQueryUserToken")
+
+	kernel32                         = windows.NewLazySystemDLL("kernel32.dll")
+	procWTSGetActiveConsoleSessionID = kernel32.NewProc("WTSGetActiveConsoleSessionId")
 )
+
+const (
+	wtsCurrentServerHandle = 0
+	wtsActive              = 0
+)
+
+type wtsSessionInfo struct {
+	SessionID       uint32
+	pWinStationName *uint16
+	State           uint32
+}
 
 func startHelperProcess(exePath string, args []string) (*os.Process, error) {
 	sessionID := activeSessionForUserProcess()
@@ -95,6 +112,70 @@ func activeSessionForUserProcess() uint32 {
 		return uint32(consoleID)
 	}
 	return 0
+}
+
+func candidateSessionIDs() []uint32 {
+	ids := map[uint32]struct{}{}
+
+	var pp uintptr
+	var count uint32
+	ret, _, _ := procWTSEnumerateSessionsW.Call(
+		wtsCurrentServerHandle,
+		0,
+		1,
+		uintptr(unsafe.Pointer(&pp)),
+		uintptr(unsafe.Pointer(&count)),
+	)
+	if ret != 0 && pp != 0 && count > 0 {
+		defer procWTSFreeMemory.Call(pp)
+		size := unsafe.Sizeof(wtsSessionInfo{})
+		for i := uint32(0); i < count; i++ {
+			p := (*wtsSessionInfo)(unsafe.Pointer(pp + uintptr(i)*size))
+			if p.State == wtsActive {
+				ids[p.SessionID] = struct{}{}
+			}
+		}
+	}
+
+	consoleID, _, _ := procWTSGetActiveConsoleSessionID.Call()
+	if consoleID != 0xFFFFFFFF {
+		ids[uint32(consoleID)] = struct{}{}
+	}
+
+	out := make([]uint32, 0, len(ids))
+	for sid := range ids {
+		out = append(out, sid)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func orderedSessionIDs() []uint32 {
+	all := candidateSessionIDs()
+	if len(all) <= 1 {
+		return all
+	}
+	consoleID, _, _ := procWTSGetActiveConsoleSessionID.Call()
+	console := uint32(0xFFFFFFFF)
+	if consoleID != 0xFFFFFFFF {
+		console = uint32(consoleID)
+	}
+
+	out := make([]uint32, 0, len(all))
+	if console != 0xFFFFFFFF {
+		for _, sid := range all {
+			if sid == console {
+				out = append(out, sid)
+				break
+			}
+		}
+	}
+	for _, sid := range all {
+		if sid != console {
+			out = append(out, sid)
+		}
+	}
+	return out
 }
 
 func primaryTokenFromExplorer(sessionID uint32) (windows.Token, error) {

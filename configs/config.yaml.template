@@ -3,7 +3,7 @@ server:
   verify_ssl: false
 
 agent:
-  version: "0.1.27"
+  version: "0.1.28"
   uuid: ""
   secret_key: ""
 

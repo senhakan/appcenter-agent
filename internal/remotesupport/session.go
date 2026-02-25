@@ -127,6 +127,14 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		sm.reset()
 		return
 	}
+	// Session might be canceled by server while dialog was waiting.
+	sm.mu.Lock()
+	stillPending := sm.state == StatePending && sm.session == req.SessionID
+	sm.mu.Unlock()
+	if !stillPending {
+		sm.logger.Printf("remote support: session %d no longer pending, skip approve flow", req.SessionID)
+		return
+	}
 
 	monitorCount := system.MonitorCount()
 	approveResp, err := sm.client.ApproveRemoteSession(ctx, sm.agentUUID, sm.secret, req.SessionID, approved, monitorCount)
@@ -195,6 +203,8 @@ func (sm *SessionManager) HandleEndSignal(ctx context.Context, end api.RemoteSup
 }
 
 func (sm *SessionManager) EndSession(ctx context.Context, endedBy string) {
+	CloseApprovalDialogFromService()
+
 	sm.mu.Lock()
 	sessionID := sm.session
 	sm.mu.Unlock()
@@ -209,6 +219,7 @@ func (sm *SessionManager) EndSession(ctx context.Context, endedBy string) {
 }
 
 func (sm *SessionManager) reset() {
+	CloseApprovalDialogFromService()
 	sm.vnc.Stop()
 	sm.mu.Lock()
 	defer sm.mu.Unlock()

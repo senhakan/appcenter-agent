@@ -10,3 +10,5 @@ func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bo
 	_ = timeoutSec
 	return false, errors.New("remote support dialog is only available on windows")
 }
+
+func CloseApprovalDialogFromService() {}
