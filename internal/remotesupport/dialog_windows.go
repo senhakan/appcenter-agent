@@ -23,9 +23,14 @@ var (
 	approvalOutFile string
 )
 
+type approvalResult struct {
+	approved     bool
+	monitorCount int
+}
+
 // ShowApprovalDialogFromService shows a cancelable user approval dialog from service context.
 // It launches a popup process in active user session and waits for response file.
-func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bool, error) {
+func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bool, int, error) {
 	if timeoutSec <= 0 {
 		timeoutSec = 30
 	}
@@ -51,7 +56,10 @@ func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bo
 		"$nl=[Environment]::NewLine; " +
 		"$msg='" + adminName + " asagidaki sebep ile ekraniniza baglanmak istiyor.' + $nl + $nl + '" + reason + "' + $nl + $nl + 'Onay veriyor musunuz?'; " +
 		"$r=$ws.Popup($msg," + strconv.Itoa(timeoutSec) + ",'" + title + "',0x24); " +
-		"Set-Content -Path '" + outPath + "' -Value $r -Encoding ascii -Force"
+		"$mc=1; " +
+		"try { Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop; $mc=[System.Windows.Forms.Screen]::AllScreens.Count } catch { $mc=1 }; " +
+		"if ([int]$mc -le 0) { $mc=1 }; " +
+		"Set-Content -Path '" + outPath + "' -Value ($r.ToString() + '|' + $mc.ToString()) -Encoding ascii -Force"
 
 	psExe := `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
 	proc, err := StartProcessInActiveUserSession(psExe, []string{
@@ -65,7 +73,7 @@ func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bo
 		ps,
 	})
 	if err != nil {
-		return false, fmt.Errorf("start approval popup: %w", err)
+		return false, 1, fmt.Errorf("start approval popup: %w", err)
 	}
 
 	approvalMu.Lock()
@@ -75,15 +83,15 @@ func ShowApprovalDialogFromService(adminName, reason string, timeoutSec int) (bo
 
 	deadline := time.Now().Add(time.Duration(timeoutSec+2) * time.Second)
 	for time.Now().Before(deadline) {
-		if code, ok := readApprovalCode(outPath); ok {
+		if result, ok := readApprovalResult(outPath); ok {
 			_ = CloseApprovalDialogFromService()
-			return code == idYes, nil
+			return result.approved, result.monitorCount, nil
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 
 	_ = CloseApprovalDialogFromService()
-	return false, nil
+	return false, 1, nil
 }
 
 // CloseApprovalDialogFromService force-closes the active approval popup if present.
@@ -105,20 +113,33 @@ func CloseApprovalDialogFromService() error {
 	return nil
 }
 
-func readApprovalCode(path string) (int, bool) {
+func readApprovalResult(path string) (approvalResult, bool) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return 0, false
+		return approvalResult{}, false
 	}
 	s := strings.TrimSpace(string(b))
 	if s == "" {
-		return 0, false
+		return approvalResult{}, false
 	}
-	n, err := strconv.Atoi(s)
+	parts := strings.Split(s, "|")
+	if len(parts) == 0 {
+		return approvalResult{}, false
+	}
+	code, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
-		return 0, false
+		return approvalResult{}, false
 	}
-	return n, true
+	mon := 1
+	if len(parts) >= 2 {
+		if n, convErr := strconv.Atoi(strings.TrimSpace(parts[1])); convErr == nil && n > 0 {
+			mon = n
+		}
+	}
+	return approvalResult{
+		approved:     code == idYes,
+		monitorCount: mon,
+	}, true
 }
 
 func psSingleQuote(s string) string {

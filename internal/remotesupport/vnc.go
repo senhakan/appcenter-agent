@@ -21,6 +21,7 @@ type VNCServer struct {
 	exePath    string
 	configPath string
 	process    *os.Process
+	process2   *os.Process
 	logger     *log.Logger
 }
 
@@ -45,12 +46,26 @@ func (v *VNCServer) Start(password string, port int) error {
 	// Always ensure a clean process before re-starting.
 	v.Stop()
 
-	proc, err := startHelperProcess(v.exePath, []string{"-run", "-port", strconv.Itoa(port)})
+	proc, err := startHelperProcess(v.exePath, []string{"-multi", "-run", "-port", strconv.Itoa(port)})
 	if err != nil {
 		return fmt.Errorf("start helper: %w", err)
 	}
 	v.process = proc
 	v.logger.Printf("remote support: helper started pid=%d port=%d", v.process.Pid, port)
+	return nil
+}
+
+func (v *VNCServer) StartSecondary(password string, port int) error {
+	if !v.Available() {
+		return fmt.Errorf("vnc helper not found: %s", v.exePath)
+	}
+	args := []string{"-multi", "-run", "-port", strconv.Itoa(port), "-displaymode", "secondary"}
+	proc, err := startHelperProcess(v.exePath, args)
+	if err != nil {
+		return fmt.Errorf("start secondary helper: %w", err)
+	}
+	v.process2 = proc
+	v.logger.Printf("remote support: secondary helper started pid=%d port=%d mode=secondary", proc.Pid, port)
 	return nil
 }
 
@@ -64,6 +79,10 @@ func (v *VNCServer) Stop() {
 	if v.process != nil {
 		_ = v.process.Kill()
 		v.process = nil
+	}
+	if v.process2 != nil {
+		_ = v.process2.Kill()
+		v.process2 = nil
 	}
 	// Defensive cleanup by image name.
 	_ = exec.Command("taskkill", "/F", "/IM", vncHelperName).Run()

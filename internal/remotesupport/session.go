@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"appcenter-agent/internal/api"
-	"appcenter-agent/internal/system"
 )
 
 type SessionState string
@@ -34,11 +33,13 @@ type SessionManager struct {
 
 	approvalTimeoutSec int
 	helperPort         int
+	secondaryHelperPort int
 }
 
 const (
 	defaultApprovalTimeoutSec = 30
 	defaultHelperPort         = 20010
+	defaultSecondaryPort      = 20011
 	warmupPassword            = "warmup01"
 )
 
@@ -60,6 +61,7 @@ func NewSessionManager(
 		logger:             logger,
 		vnc:                NewVNCServer(logger),
 		helperPort:         defaultHelperPort,
+		secondaryHelperPort: defaultSecondaryPort,
 	}
 	return sm
 }
@@ -121,7 +123,7 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		return
 	}
 
-	approved, err := ShowApprovalDialogFromService(req.AdminName, req.Reason, sm.approvalTimeoutSec)
+	approved, monitorCount, err := ShowApprovalDialogFromService(req.AdminName, req.Reason, sm.approvalTimeoutSec)
 	if err != nil {
 		sm.logger.Printf("remote support: approval dialog failed: %v", err)
 		sm.reset()
@@ -136,13 +138,13 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		return
 	}
 
-	monitorCount := system.MonitorCount()
 	approveResp, err := sm.client.ApproveRemoteSession(ctx, sm.agentUUID, sm.secret, req.SessionID, approved, monitorCount)
 	if err != nil {
 		sm.logger.Printf("remote support: approve report failed: %v", err)
 		sm.reset()
 		return
 	}
+	sm.logger.Printf("remote support: approval result approved=%t monitor_count=%d session=%d", approved, monitorCount, req.SessionID)
 	if !approved {
 		sm.logger.Printf("remote support: session %d rejected", req.SessionID)
 		sm.reset()
@@ -174,6 +176,13 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		sm.logger.Printf("remote support: helper listen timeout on %d after approval", targetPort)
 		sm.reset()
 		return
+	}
+	if monitorCount >= 2 {
+		if err := sm.vnc.StartSecondary(vncPassword, sm.secondaryHelperPort); err != nil {
+			sm.logger.Printf("remote support: secondary helper start failed: %v", err)
+		} else if !sm.vnc.WaitListening(sm.secondaryHelperPort, 10*time.Second) {
+			sm.logger.Printf("remote support: secondary helper listen timeout on %d", sm.secondaryHelperPort)
+		}
 	}
 
 	sm.mu.Lock()

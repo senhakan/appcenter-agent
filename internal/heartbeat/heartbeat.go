@@ -45,6 +45,7 @@ type Sender struct {
 	installedProvider InstalledAppsProvider
 	inventoryProvider InventoryHashProvider
 	remoteProvider    RemoteSupportProvider
+	triggerCh         chan struct{}
 
 	sysProfileStatePath string
 	sysProfileLastSent  time.Time
@@ -77,9 +78,17 @@ func NewSender(
 		installedProvider:   installedProvider,
 		inventoryProvider:   inventoryProvider,
 		remoteProvider:      remoteProvider,
+		triggerCh:           make(chan struct{}, 1),
 		sysProfileStatePath: statePath,
 		sysProfileLastSent:  lastSent,
 		sysProfileLastHash:  lastHash,
+	}
+}
+
+func (s *Sender) TriggerNow() {
+	select {
+	case s.triggerCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -96,6 +105,10 @@ func (s *Sender) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.sendOnce(ctx, false)
+		case <-s.triggerCh:
+			s.logger.Println("heartbeat triggered by signal")
+			s.sendOnce(ctx, false)
+			ticker.Reset(time.Duration(s.cfg.Heartbeat.IntervalSec) * time.Second)
 		}
 	}
 }

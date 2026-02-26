@@ -38,8 +38,9 @@ func (e *HTTPError) Error() string {
 }
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL      string
+	httpClient   *http.Client
+	longPollHTTP *http.Client
 }
 
 func NewClient(cfg config.ServerConfig) *Client {
@@ -47,6 +48,9 @@ func NewClient(cfg config.ServerConfig) *Client {
 		baseURL: strings.TrimRight(cfg.URL, "/"),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+		},
+		longPollHTTP: &http.Client{
+			Timeout: 65 * time.Second,
 		},
 	}
 }
@@ -410,6 +414,44 @@ func (c *Client) getJSON(ctx context.Context, path string, headers map[string]st
 		return httpErrorFromResponse(http.MethodGet, url, resp)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+type SignalResponse struct {
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+}
+
+func (c *Client) WaitForSignal(ctx context.Context, agentUUID, secret string, timeoutSec int) (*SignalResponse, error) {
+	headers := map[string]string{
+		"X-Agent-UUID":   agentUUID,
+		"X-Agent-Secret": secret,
+	}
+
+	path := fmt.Sprintf("/api/v1/agent/signal?timeout=%d", timeoutSec)
+	url := c.baseURL + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := c.longPollHTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, httpErrorFromResponse(http.MethodGet, url, resp)
+	}
+
+	var out SignalResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func httpErrorFromResponse(method, url string, resp *http.Response) error {

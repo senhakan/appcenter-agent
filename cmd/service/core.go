@@ -108,6 +108,9 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager, remoteProvider)
 	go sender.Start(ctx)
 
+	signalListener := heartbeat.NewSignalListener(client, cfg.Agent.UUID, cfg.Agent.SecretKey, logger, sender.TriggerNow)
+	go signalListener.Start(ctx)
+
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
 		var lastErr error
 		for attempt := 1; attempt <= 3; attempt++ {
