@@ -197,6 +197,8 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	req := api.HeartbeatRequest{
 		Hostname:      info.Hostname,
 		IPAddress:     info.IPAddress,
+		FullIP:        info.IPAddresses,
+		UptimeSec:     info.UptimeSec,
 		OSUser:        osUser,
 		OSVersion:     info.OSVersion,
 		Platform:      "windows",

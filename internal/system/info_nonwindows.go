@@ -7,3 +7,7 @@ package system
 func collectHostExtras() hostExtras {
 	return hostExtras{}
 }
+
+func readUptimeSec() int {
+	return 0
+}

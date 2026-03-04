@@ -13,6 +13,7 @@ import (
 var (
 	modKernel32              = windows.NewLazySystemDLL("kernel32.dll")
 	procGlobalMemoryStatusEx = modKernel32.NewProc("GlobalMemoryStatusEx")
+	procGetTickCount64       = modKernel32.NewProc("GetTickCount64")
 )
 
 // memoryStatusEx mirrors MEMORYSTATUSEX from the Windows API.
@@ -58,4 +59,10 @@ func collectHostExtras() hostExtras {
 	}
 
 	return extras
+}
+
+func readUptimeSec() int {
+	v, _, _ := procGetTickCount64.Call()
+	// GetTickCount64 returns milliseconds since system boot.
+	return int(v / 1000)
 }

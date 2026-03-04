@@ -124,6 +124,8 @@ type SystemProfile struct {
 type HeartbeatRequest struct {
 	Hostname      string         `json:"hostname"`
 	IPAddress     string         `json:"ip_address"`
+	FullIP        []string       `json:"full_ip,omitempty"`
+	UptimeSec     int            `json:"uptime_sec,omitempty"`
 	OSUser        string         `json:"os_user"`
 	OSVersion     string         `json:"os_version,omitempty"`
 	Platform      string         `json:"platform,omitempty"`

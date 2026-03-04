@@ -9,6 +9,8 @@ import (
 type HostInfo struct {
 	Hostname   string
 	IPAddress  string
+	IPAddresses []string
+	UptimeSec  int
 	OSVersion  string
 	CPUModel   string
 	RAMGB      int
@@ -34,6 +36,8 @@ func CollectHostInfo() HostInfo {
 	return HostInfo{
 		Hostname:   hostname,
 		IPAddress:  firstIPv4(),
+		IPAddresses: allIPv4(),
+		UptimeSec:  readUptimeSec(),
 		OSVersion:  runtime.GOOS + "/" + runtime.GOARCH,
 		CPUModel:   cpuModel,
 		RAMGB:      extras.RAMGB,
@@ -42,10 +46,20 @@ func CollectHostInfo() HostInfo {
 }
 
 func firstIPv4() string {
-	ifaces, err := net.Interfaces()
-	if err != nil {
+	ips := allIPv4()
+	if len(ips) == 0 {
 		return ""
 	}
+	return ips[0]
+}
+
+func allIPv4() []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, 8)
+	seen := make(map[string]struct{})
 	for _, iface := range ifaces {
 		if (iface.Flags&net.FlagUp) == 0 || (iface.Flags&net.FlagLoopback) != 0 {
 			continue
@@ -61,9 +75,14 @@ func firstIPv4() string {
 			}
 			ip := ipNet.IP.To4()
 			if ip != nil {
-				return ip.String()
+				s := ip.String()
+				if _, ok := seen[s]; ok {
+					continue
+				}
+				seen[s] = struct{}{}
+				out = append(out, s)
 			}
 		}
 	}
-	return ""
+	return out
 }
