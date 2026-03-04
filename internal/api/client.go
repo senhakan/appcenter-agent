@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -56,13 +57,17 @@ func NewClient(cfg config.ServerConfig) *Client {
 }
 
 type RegisterRequest struct {
-	UUID         string `json:"uuid"`
-	Hostname     string `json:"hostname"`
-	OSVersion    string `json:"os_version"`
-	AgentVersion string `json:"agent_version"`
-	CPUModel     string `json:"cpu_model"`
-	RAMGB        int    `json:"ram_gb"`
-	DiskFreeGB   int    `json:"disk_free_gb"`
+	UUID          string `json:"uuid"`
+	Hostname      string `json:"hostname"`
+	OSVersion     string `json:"os_version"`
+	Platform      string `json:"platform,omitempty"`
+	Arch          string `json:"arch,omitempty"`
+	Distro        string `json:"distro,omitempty"`
+	DistroVersion string `json:"distro_version,omitempty"`
+	AgentVersion  string `json:"agent_version"`
+	CPUModel      string `json:"cpu_model"`
+	RAMGB         int    `json:"ram_gb"`
+	DiskFreeGB    int    `json:"disk_free_gb"`
 }
 
 type RegisterResponse struct {
@@ -120,7 +125,14 @@ type HeartbeatRequest struct {
 	Hostname      string         `json:"hostname"`
 	IPAddress     string         `json:"ip_address"`
 	OSUser        string         `json:"os_user"`
+	OSVersion     string         `json:"os_version,omitempty"`
+	Platform      string         `json:"platform,omitempty"`
+	Arch          string         `json:"arch,omitempty"`
+	Distro        string         `json:"distro,omitempty"`
+	DistroVersion string         `json:"distro_version,omitempty"`
 	AgentVersion  string         `json:"agent_version"`
+	CPUModel      string         `json:"cpu_model,omitempty"`
+	RAMGB         int            `json:"ram_gb,omitempty"`
 	DiskFreeGB    int            `json:"disk_free_gb"`
 	CPUUsage      float64        `json:"cpu_usage"`
 	RAMUsage      float64        `json:"ram_usage"`
@@ -233,6 +245,9 @@ func (c *Client) Register(ctx context.Context, uuid string, version string, info
 		UUID:         uuid,
 		Hostname:     info.Hostname,
 		OSVersion:    info.OSVersion,
+		Platform:     "windows",
+		Arch:         runtime.GOARCH,
+		Distro:       "windows",
 		AgentVersion: version,
 		CPUModel:     info.CPUModel,
 		RAMGB:        info.RAMGB,

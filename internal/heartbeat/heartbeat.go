@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"os/user"
+	"runtime"
 	"time"
 
 	"appcenter-agent/internal/api"
@@ -197,7 +198,13 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 		Hostname:      info.Hostname,
 		IPAddress:     info.IPAddress,
 		OSUser:        osUser,
+		OSVersion:     info.OSVersion,
+		Platform:      "windows",
+		Arch:          runtime.GOARCH,
+		Distro:        "windows",
 		AgentVersion:  s.cfg.Agent.Version,
+		CPUModel:      info.CPUModel,
+		RAMGB:         info.RAMGB,
 		DiskFreeGB:    info.DiskFreeGB,
 		CPUUsage:      0,
 		RAMUsage:      0,
