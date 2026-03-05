@@ -766,3 +766,30 @@ Bu dosya her teknik degisiklikten sonra guncellenir:
 - Sonuc:
   - Pending approval durumunda browser kapanisi / iptal aksiyonlarinda onay popup anlik kapanma davranisi dogrulandi.
   - Popup metninde alt satir kirilimlari duzgun gorunuyor.
+
+### 2026-03-05 Windows PS1 deployment canli test (10.6.20.172)
+
+- Hedef host:
+  - `10.6.20.172` (`akg03wst005\\apptest`)
+  - Agent UUID: `54d2ad5c-5b66-477d-82da-e5a22ef6dc01`
+- Hazirlik:
+  - PS1 destekli servis binary'si commit `524f7ad` worktree uzerinden derlendi.
+  - Derlenen dosya: `/tmp/appcenter-service-ps1.exe`
+  - SHA256: `81ec8f2210d829d6214cf8102d8495a43987a5caa419e92b84a0fa8d0af936e4`
+  - Host'ta `C:\\Program Files\\AppCenter\\appcenter-service.exe` bu binary ile guncellendi ve `AppCenterAgent` yeniden baslatildi.
+- Canli test akisi:
+  - Server'da `.ps1` uygulama yuklendi:
+    - App: `PS1 Live Test 20260305-110105`
+    - `app_id=27`, `file_type=ps1`, `target_platform=windows`
+    - `install_args=-Tag live`
+  - Ajan hedefli deployment olusturuldu:
+    - `deployment_id=15`
+    - target agent: `54d2ad5c-5b66-477d-82da-e5a22ef6dc01`
+- Sonuc dogrulamasi:
+  - `task_history` kaydi: `id=56`, `action=install`, `status=success`, `exit_code=0`, `message=Installation completed successfully`
+  - `agent_applications`: `status=installed`, `installed_version=1.0.0`
+  - Host cikti dosyasi:
+    - `C:\\ProgramData\\AppCenter\\ps1_test_ok.txt`
+    - Icerik: `ok time=2026-03-05T11:01:09.2643233Z tag=live user=AKG03WST005$ host=AKG03WST005`
+- Not:
+  - Bu hostta heartbeat logunda self-update URL'i icin tekrarlayan `404 Not Found` satirlari goruluyor; PS1 deployment sonucunu etkilemedi.

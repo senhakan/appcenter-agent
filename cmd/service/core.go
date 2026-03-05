@@ -130,7 +130,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	}
 
 	executeFn := func(ctx context.Context, cmd api.Command) (queue.ExecutionResult, error) {
-		result, err := executeCommand(ctx, *cfg, cmd)
+		result, err := executeCommand(ctx, *cfg, cmd, logger)
 		if err == nil {
 			// Rescan installed software immediately after a successful
 			// installation so the inventory reflects the change before
@@ -402,9 +402,17 @@ func bootstrapAgent(client *api.Client, cfg *config.Config, logger interface{ Pr
 	return nil
 }
 
-func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (queue.ExecutionResult, error) {
+func executeCommand(
+	ctx context.Context,
+	cfg config.Config,
+	cmd api.Command,
+	logger interface{ Printf(string, ...any) },
+) (queue.ExecutionResult, error) {
 	if err := os.MkdirAll(cfg.Download.TempDir, 0o755); err != nil {
 		return queue.ExecutionResult{ExitCode: -1}, err
+	}
+	if logger != nil {
+		logger.Printf("task=%d app=%d install start: action=%s version=%s", cmd.TaskID, cmd.AppID, cmd.Action, cmd.AppVersion)
 	}
 
 	basePath := filepath.Join(cfg.Download.TempDir, fmt.Sprintf("task_%d_app_%d", cmd.TaskID, cmd.AppID))
@@ -426,7 +434,13 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 	)
 	downloadDuration := int(time.Since(downloadStarted).Seconds())
 	if err != nil {
+		if logger != nil {
+			logger.Printf("task=%d app=%d install failed at download: err=%v", cmd.TaskID, cmd.AppID, err)
+		}
 		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, fmt.Errorf("download failed: %w", err)
+	}
+	if logger != nil {
+		logger.Printf("task=%d app=%d download completed: bytes=%d file=%s", cmd.TaskID, cmd.AppID, meta.BytesWritten, meta.Filename)
 	}
 
 	installPath := downloadPath
@@ -441,16 +455,38 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 
 	valid, err := utils.VerifyFileHash(installPath, cmd.FileHash)
 	if err != nil {
+		if logger != nil {
+			logger.Printf("task=%d app=%d install failed at hash verify: err=%v", cmd.TaskID, cmd.AppID, err)
+		}
 		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, fmt.Errorf("hash verification failed: %w", err)
 	}
 	if !valid {
+		if logger != nil {
+			logger.Printf("task=%d app=%d install failed: hash mismatch", cmd.TaskID, cmd.AppID)
+		}
 		return queue.ExecutionResult{ExitCode: -1, DownloadDurationSec: downloadDuration}, errors.New("hash mismatch")
 	}
 
+	installerType := strings.ToLower(filepath.Ext(installPath))
+	if logger != nil {
+		logger.Printf("task=%d app=%d installer run: type=%s args=%q", cmd.TaskID, cmd.AppID, installerType, cmd.InstallArgs)
+	}
 	installStarted := time.Now()
 	exitCode, err := installer.Install(installPath, cmd.InstallArgs, cfg.Install.TimeoutSec)
 	installDuration := int(time.Since(installStarted).Seconds())
 	if err != nil {
+		if logger != nil {
+			logger.Printf(
+				"task=%d app=%d install failed: type=%s exit=%d download_sec=%d install_sec=%d err=%v",
+				cmd.TaskID,
+				cmd.AppID,
+				installerType,
+				exitCode,
+				downloadDuration,
+				installDuration,
+				err,
+			)
+		}
 		return queue.ExecutionResult{
 			ExitCode:            exitCode,
 			DownloadDurationSec: downloadDuration,
@@ -460,6 +496,17 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 
 	if cfg.Install.EnableAutoCleanup {
 		_ = os.Remove(installPath)
+	}
+	if logger != nil {
+		logger.Printf(
+			"task=%d app=%d install success: type=%s exit=%d download_sec=%d install_sec=%d",
+			cmd.TaskID,
+			cmd.AppID,
+			installerType,
+			exitCode,
+			downloadDuration,
+			installDuration,
+		)
 	}
 
 	return queue.ExecutionResult{
