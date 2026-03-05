@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -32,5 +33,18 @@ func TestInstallUnsupportedType(t *testing.T) {
 	_, err := Install("/tmp/file.zip", "", 5)
 	if err == nil {
 		t.Fatal("expected unsupported type error")
+	}
+}
+
+func TestInstallPS1NonWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-windows behavior")
+	}
+	_, err := Install("/tmp/install.ps1", "", 5)
+	if err == nil {
+		t.Fatal("expected ps1 install error")
+	}
+	if !strings.Contains(err.Error(), "only supported on windows") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

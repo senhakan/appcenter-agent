@@ -21,6 +21,8 @@ func Install(filePath, args string, timeoutSec int) (int, error) {
 		return installMSI(ctx, filePath, args)
 	case ".exe":
 		return installEXE(ctx, filePath, args)
+	case ".ps1":
+		return installPowerShell(ctx, filePath, args)
 	default:
 		return -1, fmt.Errorf("unsupported installer type: %s", filepath.Ext(filePath))
 	}

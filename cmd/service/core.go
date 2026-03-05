@@ -430,7 +430,7 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 	}
 
 	installPath := downloadPath
-	if ext := strings.ToLower(filepath.Ext(meta.Filename)); ext == ".msi" || ext == ".exe" {
+	if ext := strings.ToLower(filepath.Ext(meta.Filename)); ext == ".msi" || ext == ".exe" || ext == ".ps1" {
 		candidate := basePath + ext
 		if candidate != downloadPath {
 			if renameErr := os.Rename(downloadPath, candidate); renameErr == nil {
@@ -472,7 +472,7 @@ func executeCommand(ctx context.Context, cfg config.Config, cmd api.Command) (qu
 }
 
 func findExistingDownloadPath(basePath string) string {
-	for _, ext := range []string{".msi", ".exe", ".bin"} {
+	for _, ext := range []string{".msi", ".exe", ".ps1", ".bin"} {
 		candidate := basePath + ext
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
