@@ -31,8 +31,8 @@ type SessionManager struct {
 	logger    *log.Logger
 	vnc       *VNCServer
 
-	approvalTimeoutSec int
-	helperPort         int
+	approvalTimeoutSec  int
+	helperPort          int
 	secondaryHelperPort int
 }
 
@@ -53,14 +53,14 @@ func NewSessionManager(
 		approvalTimeoutSec = defaultApprovalTimeoutSec
 	}
 	sm := &SessionManager{
-		state:              StateIdle,
-		client:             client,
-		agentUUID:          agentUUID,
-		secret:             secret,
-		approvalTimeoutSec: approvalTimeoutSec,
-		logger:             logger,
-		vnc:                NewVNCServer(logger),
-		helperPort:         defaultHelperPort,
+		state:               StateIdle,
+		client:              client,
+		agentUUID:           agentUUID,
+		secret:              secret,
+		approvalTimeoutSec:  approvalTimeoutSec,
+		logger:              logger,
+		vnc:                 NewVNCServer(logger),
+		helperPort:          defaultHelperPort,
 		secondaryHelperPort: defaultSecondaryPort,
 	}
 	return sm
@@ -123,11 +123,18 @@ func (sm *SessionManager) HandleRequest(ctx context.Context, req api.RemoteSuppo
 		return
 	}
 
-	approved, monitorCount, err := ShowApprovalDialogFromService(req.AdminName, req.Reason, sm.approvalTimeoutSec)
-	if err != nil {
-		sm.logger.Printf("remote support: approval dialog failed: %v", err)
-		sm.reset()
-		return
+	approved := true
+	monitorCount := 1
+	if req.RequiresApproval {
+		var err error
+		approved, monitorCount, err = ShowApprovalDialogFromService(req.AdminName, req.Reason, sm.approvalTimeoutSec)
+		if err != nil {
+			sm.logger.Printf("remote support: approval dialog failed: %v", err)
+			sm.reset()
+			return
+		}
+	} else {
+		sm.logger.Printf("remote support: session %d auto-approved by policy", req.SessionID)
 	}
 	// Session might be canceled by server while dialog was waiting.
 	sm.mu.Lock()

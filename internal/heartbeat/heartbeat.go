@@ -51,6 +51,11 @@ type Sender struct {
 	sysProfileStatePath string
 	sysProfileLastSent  time.Time
 	sysProfileLastHash  string
+	servicesEnabled     bool
+	servicesSyncNeeded  bool
+	servicesIntervalMin int
+	servicesLastSent    time.Time
+	servicesLastHash    string
 }
 
 func NewSender(
@@ -83,6 +88,9 @@ func NewSender(
 		sysProfileStatePath: statePath,
 		sysProfileLastSent:  lastSent,
 		sysProfileLastHash:  lastHash,
+		servicesEnabled:     false,
+		servicesSyncNeeded:  false,
+		servicesIntervalMin: 10,
 	}
 }
 
@@ -118,6 +126,60 @@ func hashSystemProfile(p system.SystemProfile) string {
 	b, _ := json.Marshal(p)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+func hashServices(items []api.ServiceItem) string {
+	b, _ := json.Marshal(items)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Sender) maybeAttachServices(req *api.HeartbeatRequest) {
+	if !s.servicesEnabled {
+		return
+	}
+	intervalMin := s.servicesIntervalMin
+	if intervalMin <= 0 {
+		intervalMin = 10
+	}
+	needCollect := s.servicesSyncNeeded || s.servicesLastHash == "" || s.servicesLastSent.IsZero() ||
+		time.Since(s.servicesLastSent) >= time.Duration(intervalMin)*time.Minute
+
+	if !needCollect {
+		req.ServicesHash = s.servicesLastHash
+		return
+	}
+
+	rows, err := system.CollectServices()
+	if err != nil {
+		s.logger.Printf("service snapshot collect failed: %v", err)
+		if s.servicesLastHash != "" {
+			req.ServicesHash = s.servicesLastHash
+		}
+		return
+	}
+	items := make([]api.ServiceItem, 0, len(rows))
+	for _, r := range rows {
+		if r.Name == "" {
+			continue
+		}
+		items = append(items, api.ServiceItem{
+			Name:        r.Name,
+			DisplayName: r.DisplayName,
+			Status:      r.Status,
+			StartupType: r.StartupType,
+			PID:         r.PID,
+			RunAs:       r.RunAs,
+			Description: r.Description,
+		})
+	}
+	hash := hashServices(items)
+	req.ServicesHash = hash
+	if s.servicesSyncNeeded || hash != s.servicesLastHash {
+		req.Services = items
+		s.servicesLastHash = hash
+		s.servicesLastSent = time.Now().UTC()
+	}
 }
 
 func (s *Sender) maybeAttachSystemProfile(req *api.HeartbeatRequest) {
@@ -231,6 +293,7 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	}
 
 	s.maybeAttachSystemProfile(&req)
+	s.maybeAttachServices(&req)
 	if s.remoteProvider != nil {
 		req.RemoteSupport = s.remoteProvider.CurrentRemoteSupportStatus()
 	}
@@ -252,6 +315,28 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 		if v, ok := resp.Config["inventory_sync_required"]; ok {
 			if b, ok := v.(bool); ok {
 				inventorySyncRequired = b
+			}
+		}
+		if v, ok := resp.Config["service_monitoring_enabled"]; ok {
+			if b, ok := v.(bool); ok {
+				s.servicesEnabled = b
+			}
+		}
+		if v, ok := resp.Config["services_sync_required"]; ok {
+			if b, ok := v.(bool); ok {
+				s.servicesSyncNeeded = b
+			}
+		}
+		if v, ok := resp.Config["inventory_scan_interval_min"]; ok {
+			switch t := v.(type) {
+			case float64:
+				if int(t) > 0 {
+					s.servicesIntervalMin = int(t)
+				}
+			case int:
+				if t > 0 {
+					s.servicesIntervalMin = t
+				}
 			}
 		}
 	}

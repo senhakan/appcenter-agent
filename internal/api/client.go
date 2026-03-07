@@ -121,6 +121,16 @@ type SystemProfile struct {
 	Virtualization *VirtualizationInfo `json:"virtualization,omitempty"`
 }
 
+type ServiceItem struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	Status      string `json:"status,omitempty"`
+	StartupType string `json:"startup_type,omitempty"`
+	PID         int    `json:"pid,omitempty"`
+	RunAs       string `json:"run_as,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 type HeartbeatRequest struct {
 	Hostname      string         `json:"hostname"`
 	IPAddress     string         `json:"ip_address"`
@@ -142,6 +152,8 @@ type HeartbeatRequest struct {
 	AppsChanged   bool           `json:"apps_changed"`
 	InstalledApps []InstalledApp `json:"installed_apps"`
 	InventoryHash string         `json:"inventory_hash,omitempty"`
+	ServicesHash  string         `json:"services_hash,omitempty"`
+	Services      []ServiceItem  `json:"services,omitempty"`
 	// Always send this field so the server can clear stale session data.
 	LoggedInSessions []LoggedInSession    `json:"logged_in_sessions"`
 	SystemProfile    *SystemProfile       `json:"system_profile,omitempty"`
@@ -179,11 +191,12 @@ type HeartbeatResponse struct {
 }
 
 type RemoteSupportRequest struct {
-	SessionID   int    `json:"session_id"`
-	AdminName   string `json:"admin_name"`
-	Reason      string `json:"reason"`
-	RequestedAt string `json:"requested_at"`
-	TimeoutAt   string `json:"timeout_at"`
+	SessionID        int    `json:"session_id"`
+	AdminName        string `json:"admin_name"`
+	Reason           string `json:"reason"`
+	RequestedAt      string `json:"requested_at"`
+	TimeoutAt        string `json:"timeout_at"`
+	RequiresApproval bool   `json:"requires_approval"`
 }
 
 type RemoteSupportEnd struct {
