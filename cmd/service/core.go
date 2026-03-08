@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"appcenter-agent/internal/runtimeupdate"
 	"appcenter-agent/internal/system"
 	"appcenter-agent/internal/updater"
+	"appcenter-agent/internal/wsconn"
 	"appcenter-agent/pkg/utils"
 )
 
@@ -106,9 +109,11 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	}
 
 	sender := heartbeat.NewSender(client, cfg, logger, pollResults, taskQueue, invManager, remoteProvider)
+	var wsActive atomic.Bool
+	sender.SetWSActive(false)
 	go sender.Start(ctx)
 
-	signalListener := heartbeat.NewSignalListener(client, cfg.Agent.UUID, cfg.Agent.SecretKey, logger, sender.TriggerNow)
+	signalListener := heartbeat.NewSignalListener(client, cfg.Agent.UUID, cfg.Agent.SecretKey, logger, sender.TriggerNow, &wsActive)
 	go signalListener.Start(ctx)
 
 	reportFn := func(ctx context.Context, taskID int, req api.TaskStatusRequest) error {
@@ -140,6 +145,111 @@ func runAgent(ctx context.Context, cfgPath string) error {
 		return result, err
 	}
 
+	var wsStartOnce sync.Once
+	var stateMu sync.Mutex
+	var startWSClient func()
+	startWSClient = func() {
+		wsStartOnce.Do(func() {
+			hostInfo := system.CollectHostInfo()
+			wsClient := wsconn.NewClient(wsconn.Config{
+				ServerURL:       cfg.Server.URL,
+				WSURL:           cfg.WebSocket.URL,
+				AgentUUID:       cfg.Agent.UUID,
+				SecretKey:       cfg.Agent.SecretKey,
+				Version:         cfg.Agent.Version,
+				Platform:        runtime.GOOS,
+				Arch:            runtime.GOARCH,
+				Hostname:        hostInfo.Hostname,
+				OSVersion:       hostInfo.OSVersion,
+				ReconnectMinSec: cfg.WebSocket.ReconnectMinSec,
+				ReconnectMaxSec: cfg.WebSocket.ReconnectMaxSec,
+				Callbacks: wsconn.Callbacks{
+					OnConnected: func() {
+						wsActive.Store(true)
+						sender.SetWSActive(true)
+						logger.Println("ws: connected, HTTP heartbeat suppressed")
+					},
+					OnDisconnected: func() {
+						wsActive.Store(false)
+						sender.SetWSActive(false)
+						sender.TriggerNow()
+						logger.Println("ws: disconnected, HTTP heartbeat resumed")
+					},
+					OnSignal: func() {
+						sender.TriggerNow()
+					},
+					OnServerHello: func(payload map[string]any) {
+						logger.Printf("ws: server.hello received")
+						if serverConfig, ok := payload["config"].(map[string]any); ok {
+							if taskQueue.PendingCount() == 0 {
+								if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {
+									if errors.Is(err, updater.ErrUpdateRestart) {
+										logger.Println("ws: self-update restart triggered")
+										return
+									}
+									logger.Printf("ws: self-update apply failed: %v", err)
+								}
+							}
+							if err := updater.StageIfNeeded(ctx, *cfg, serverConfig, logger); err != nil {
+								logger.Printf("ws: self-update stage failed: %v", err)
+							}
+							stateMu.Lock()
+							applyServerConfig(serverConfig, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
+							stateMu.Unlock()
+						}
+						commands := parseCommandsFromPayload(payload)
+						if len(commands) > 0 {
+							stateMu.Lock()
+							processCommands(ctx, commands, taskQueue, time.Now().UTC(), *cfg, executeFn, reportFn, logger)
+							stateMu.Unlock()
+						}
+						stateMu.Lock()
+						handleRSRequest(ctx, parseRSRequestFromPayload(payload), sessionMgr, &remoteSupportEnabled, logger)
+						stateMu.Unlock()
+						stateMu.Lock()
+						handleRSEnd(ctx, parseRSEndFromPayload(payload), sessionMgr)
+						stateMu.Unlock()
+					},
+					OnServerCommand: func(payload map[string]any) {
+						commands := parseCommandsFromPayload(payload)
+						if len(commands) == 0 {
+							return
+						}
+						stateMu.Lock()
+						processCommands(ctx, commands, taskQueue, time.Now().UTC(), *cfg, executeFn, reportFn, logger)
+						stateMu.Unlock()
+					},
+					OnRSRequest: func(payload map[string]any) {
+						stateMu.Lock()
+						handleRSRequest(ctx, parseRSRequestFromPayload(payload), sessionMgr, &remoteSupportEnabled, logger)
+						stateMu.Unlock()
+					},
+					OnRSEnd: func(payload map[string]any) {
+						stateMu.Lock()
+						handleRSEnd(ctx, parseRSEndFromPayload(payload), sessionMgr)
+						stateMu.Unlock()
+					},
+					OnConfigPatch: func(payload map[string]any) {
+						changes, ok := payload["changes"].(map[string]any)
+						if !ok {
+							return
+						}
+						stateMu.Lock()
+						applyServerConfig(changes, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
+						stateMu.Unlock()
+					},
+				},
+				Logger: logger,
+			})
+			go wsClient.Run(ctx)
+			logger.Println("ws: client started")
+		})
+	}
+
+	if cfg.WebSocket.Enabled {
+		startWSClient()
+	}
+
 	logger.Println("service loop started")
 
 	for {
@@ -162,53 +272,15 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				logger.Printf("self-update stage failed: %v", err)
 			}
 
-			// Update inventory scan interval from server config.
-			if result.Config != nil {
-				if v, ok := result.Config["inventory_scan_interval_min"]; ok {
-					if f, ok := v.(float64); ok {
-						invManager.SetScanInterval(int(f))
-					}
-				}
-				if v, ok := result.Config["store_tray_enabled"]; ok {
-					if b, ok := v.(bool); ok {
-						// Keep enforcing desired tray state on every heartbeat so
-						// unexpected tray exits are healed automatically.
-						if b {
-							traySup.SetEnabled(true)
-							if !storeTrayEnabled.Load() {
-								logger.Printf("tray supervisor: store_tray_enabled=true")
-							}
-						} else if storeTrayEnabled.Load() {
-							traySup.SetEnabled(false)
-							logger.Printf("tray supervisor: store_tray_enabled=false")
-						}
-						storeTrayEnabled.Store(b)
-					}
-				}
-				if v, ok := result.Config["remote_support_enabled"]; ok {
-					if b, ok := v.(bool); ok {
-						prev := remoteSupportEnabled.Load()
-						remoteSupportEnabled.Store(b)
-						if prev != b {
-							logger.Printf("remote support: remote_support_enabled=%t", b)
-						}
-					}
-				}
-				runtimeMgr.UpdateConfig(runtimeupdate.Config{
-					BaseURL:     runtimeUpdateBaseURL(cfg.Server.URL),
-					IntervalMin: configInt(result.Config, "runtime_update_interval_min", 60),
-					JitterSec:   configInt(result.Config, "runtime_update_jitter_sec", 300),
-				})
-			}
-
-			if sessionMgr != nil && result.RemoteSupportRequest != nil && remoteSupportEnabled.Load() {
-				go sessionMgr.HandleRequest(ctx, *result.RemoteSupportRequest)
-			} else if result.RemoteSupportRequest != nil && !remoteSupportEnabled.Load() {
-				logger.Printf("remote support: request ignored (disabled by server policy)")
-			}
-			if sessionMgr != nil && result.RemoteSupportEnd != nil {
-				go sessionMgr.HandleEndSignal(ctx, *result.RemoteSupportEnd)
-			}
+			stateMu.Lock()
+			applyServerConfig(result.Config, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
+			stateMu.Unlock()
+			stateMu.Lock()
+			handleRSRequest(ctx, result.RemoteSupportRequest, sessionMgr, &remoteSupportEnabled, logger)
+			stateMu.Unlock()
+			stateMu.Lock()
+			handleRSEnd(ctx, result.RemoteSupportEnd, sessionMgr)
+			stateMu.Unlock()
 
 			// Periodic inventory scan.
 			invManager.ScanIfNeeded()
@@ -237,19 +309,200 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				invManager.SyncIfRequested(ctx, true, submitFn)
 			}
 
-			taskQueue.AddCommands(result.Commands)
-			if len(result.Commands) > 0 {
-				logger.Printf("received %d command(s), pending=%d", len(result.Commands), taskQueue.PendingCount())
-			}
+			stateMu.Lock()
+			processCommands(ctx, result.Commands, taskQueue, result.ServerTime, *cfg, executeFn, reportFn, logger)
+			stateMu.Unlock()
+		}
+	}
+}
 
-			for {
-				processed := taskQueue.ProcessOne(ctx, result.ServerTime, *cfg, executeFn, reportFn)
-				if !processed {
-					break
+func applyServerConfig(
+	serverConfig map[string]any,
+	logger *log.Logger,
+	invManager *inventory.Manager,
+	traySup *traySupervisor,
+	storeTrayEnabled *atomic.Bool,
+	remoteSupportEnabled *atomic.Bool,
+	runtimeMgr *runtimeupdate.Manager,
+	cfg *config.Config,
+	cfgPath string,
+	onWSEnabled func(),
+) {
+	if serverConfig == nil {
+		return
+	}
+	if v, ok := serverConfig["inventory_scan_interval_min"]; ok {
+		if f, ok := v.(float64); ok {
+			invManager.SetScanInterval(int(f))
+		}
+	}
+	if v, ok := serverConfig["store_tray_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			// Keep enforcing desired tray state on every heartbeat so unexpected tray exits are healed automatically.
+			if b {
+				traySup.SetEnabled(true)
+				if !storeTrayEnabled.Load() {
+					logger.Printf("tray supervisor: store_tray_enabled=true")
+				}
+			} else if storeTrayEnabled.Load() {
+				traySup.SetEnabled(false)
+				logger.Printf("tray supervisor: store_tray_enabled=false")
+			}
+			storeTrayEnabled.Store(b)
+		}
+	}
+	if v, ok := serverConfig["remote_support_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			prev := remoteSupportEnabled.Load()
+			remoteSupportEnabled.Store(b)
+			if prev != b {
+				logger.Printf("remote support: remote_support_enabled=%t", b)
+			}
+		}
+	}
+	if v, ok := serverConfig["websocket_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			if b && !cfg.WebSocket.Enabled {
+				cfg.WebSocket.Enabled = true
+				logger.Printf("ws: enabled via server config")
+				// Persist so the next restart starts WS client automatically.
+				if err := config.Save(cfgPath, cfg); err != nil {
+					logger.Printf("ws: failed to persist websocket.enabled=true: %v", err)
+				}
+				if onWSEnabled != nil {
+					onWSEnabled()
+				}
+			} else if !b && cfg.WebSocket.Enabled {
+				cfg.WebSocket.Enabled = false
+				logger.Printf("ws: disabled via server config (restart required to stop active connection)")
+				if err := config.Save(cfgPath, cfg); err != nil {
+					logger.Printf("ws: failed to persist websocket.enabled=false: %v", err)
 				}
 			}
 		}
 	}
+	runtimeMgr.UpdateConfig(runtimeupdate.Config{
+		BaseURL:     runtimeUpdateBaseURL(cfg.Server.URL),
+		IntervalMin: configInt(serverConfig, "runtime_update_interval_min", 60),
+		JitterSec:   configInt(serverConfig, "runtime_update_jitter_sec", 300),
+	})
+}
+
+func processCommands(
+	ctx context.Context,
+	commands []api.Command,
+	taskQueue *queue.TaskQueue,
+	serverTime time.Time,
+	cfg config.Config,
+	executeFn func(context.Context, api.Command) (queue.ExecutionResult, error),
+	reportFn func(context.Context, int, api.TaskStatusRequest) error,
+	logger *log.Logger,
+) {
+	if len(commands) > 0 {
+		taskQueue.AddCommands(commands)
+		logger.Printf("received %d command(s), pending=%d", len(commands), taskQueue.PendingCount())
+	}
+	for {
+		processed := taskQueue.ProcessOne(ctx, serverTime, cfg, executeFn, reportFn)
+		if !processed {
+			break
+		}
+	}
+}
+
+func handleRSRequest(
+	ctx context.Context,
+	req *api.RemoteSupportRequest,
+	sessionMgr *remotesupport.SessionManager,
+	remoteSupportEnabled *atomic.Bool,
+	logger *log.Logger,
+) {
+	if req == nil {
+		return
+	}
+	if sessionMgr != nil && remoteSupportEnabled.Load() {
+		go sessionMgr.HandleRequest(ctx, *req)
+		return
+	}
+	if !remoteSupportEnabled.Load() {
+		logger.Printf("remote support: request ignored (disabled by server policy)")
+	}
+}
+
+func handleRSEnd(
+	ctx context.Context,
+	end *api.RemoteSupportEnd,
+	sessionMgr *remotesupport.SessionManager,
+) {
+	if sessionMgr != nil && end != nil {
+		go sessionMgr.HandleEndSignal(ctx, *end)
+	}
+}
+
+func parseCommandsFromPayload(payload map[string]any) []api.Command {
+	if len(payload) == 0 {
+		return nil
+	}
+	commandsRaw := payload["commands"]
+	if commandsRaw == nil {
+		commandsRaw = payload["pending_commands"]
+	}
+	if commandsRaw == nil {
+		return nil
+	}
+	b, err := json.Marshal(commandsRaw)
+	if err != nil {
+		return nil
+	}
+	var commands []api.Command
+	if err := json.Unmarshal(b, &commands); err != nil {
+		return nil
+	}
+	return commands
+}
+
+func parseRSRequestFromPayload(payload map[string]any) *api.RemoteSupportRequest {
+	if len(payload) == 0 {
+		return nil
+	}
+	raw := payload["remote_support_request"]
+	if raw == nil {
+		raw = payload["pending_rs_request"]
+	}
+	if raw == nil {
+		raw = payload
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var req api.RemoteSupportRequest
+	if err := json.Unmarshal(b, &req); err != nil || req.SessionID <= 0 {
+		return nil
+	}
+	return &req
+}
+
+func parseRSEndFromPayload(payload map[string]any) *api.RemoteSupportEnd {
+	if len(payload) == 0 {
+		return nil
+	}
+	raw := payload["remote_support_end"]
+	if raw == nil {
+		raw = payload["pending_rs_end"]
+	}
+	if raw == nil {
+		raw = payload
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var end api.RemoteSupportEnd
+	if err := json.Unmarshal(b, &end); err != nil || end.SessionID <= 0 {
+		return nil
+	}
+	return &end
 }
 
 func configInt(m map[string]any, key string, def int) int {
@@ -269,6 +522,17 @@ func configInt(m map[string]any, key string, def int) int {
 		}
 	}
 	return def
+}
+
+func keys(m map[string]any) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func runtimeUpdateBaseURL(serverURL string) string {

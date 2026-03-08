@@ -43,6 +43,25 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `internal/updater/updater.go` (heartbeat config ile self-update paketi staging)
   - `pkg/utils/logger.go` (boyut bazlı log rotation)
   - `cmd/service/core.go` (task status report retry + updater entegrasyonu)
+- WS Migration Faz 0-1 tamamlandı (2026-03-07):
+  - `internal/config/config.go` → WebSocketConfig struct eklendi
+  - `internal/wsconn/types.go` → Message struct, Callbacks
+  - `internal/wsconn/client.go` → WS client (auth, hello, reconnect, ping/pong)
+  - `internal/heartbeat/heartbeat.go` → wsActive atomic.Bool, SetWSActive, ticker skip
+  - `internal/heartbeat/signal.go` → WS aktifken long-poll durdurma
+  - `cmd/service/core.go` → WS client entegrasyonu (OnConnected/OnDisconnected/OnSignal callbacks)
+  - Canary test: akg03wst005 WS ile baglanip online kaliyor, HTTP heartbeat durmus
+- WS Migration Faz 2 tamamlandı (2026-03-07):
+  - `cmd/service/core.go` → refactor: applyServerConfig, processCommands, handleRSRequest, handleRSEnd
+  - `cmd/service/core.go` → parse helpers: parseCommandsFromPayload, parseRSRequestFromPayload, parseRSEndFromPayload
+  - `internal/wsconn/types.go` → OnServerCommand, OnRSRequest, OnRSEnd, OnConfigPatch callbacks
+  - `internal/wsconn/client.go` → messageLoop'a server.command.dispatch, server.rs.request/end, server.config.patch case'leri
+  - Canary deploy ve E2E test geçti
+- WS Migration Rollout (2026-03-08):
+  - `cmd/service/core.go` → Dynamic WS start via sync.Once (startWSClient)
+  - `cmd/service/core.go` → applyServerConfig artık onWSEnabled callback alıyor
+  - Heartbeat'ten `websocket_enabled=true` gelince WS client anında başlıyor (restart gerekmez)
+  - v0.1.38 yayınlandı, tüm Windows agent'lar güncellendi ve WS'e geçti
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -83,6 +102,9 @@ agent/
 │   │   └── taskqueue.go            # Task queue + retry (exponential backoff)
 │   ├── tray/
 │   │   └── tray.go                 # System tray placeholder
+│   ├── wsconn/
+│   │   ├── types.go                # WS message struct + callbacks
+│   │   └── client.go               # WS client (auth, hello, reconnect, ping/pong)
 │   └── ipc/
 │       └── namedpipe.go            # Named Pipe server (service) + client (tray)
 ├── pkg/

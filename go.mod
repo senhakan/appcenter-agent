@@ -1,11 +1,13 @@
 module appcenter-agent
 
-go 1.21
+go 1.23
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/coder/websocket v1.8.14
 	github.com/getlantern/systray v1.2.2
 	github.com/google/uuid v1.6.0
+	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	golang.org/x/sys v0.30.0
 	golang.org/x/time v0.9.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -19,7 +21,6 @@ require (
 	github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55 // indirect
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
-	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect

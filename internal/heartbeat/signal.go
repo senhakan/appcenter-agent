@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"appcenter-agent/internal/api"
@@ -20,6 +21,7 @@ type SignalListener struct {
 	secretKey string
 	logger    *log.Logger
 	onSignal  func()
+	wsActive  *atomic.Bool
 }
 
 func NewSignalListener(
@@ -28,6 +30,7 @@ func NewSignalListener(
 	secretKey string,
 	logger *log.Logger,
 	onSignal func(),
+	wsActive *atomic.Bool,
 ) *SignalListener {
 	return &SignalListener{
 		client:    client,
@@ -35,6 +38,7 @@ func NewSignalListener(
 		secretKey: secretKey,
 		logger:    logger,
 		onSignal:  onSignal,
+		wsActive:  wsActive,
 	}
 }
 
@@ -44,6 +48,14 @@ func (sl *SignalListener) Start(ctx context.Context) {
 		if ctx.Err() != nil {
 			sl.logger.Println("signal listener stopped")
 			return
+		}
+		if sl.wsActive != nil && sl.wsActive.Load() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
+			continue
 		}
 
 		resp, err := sl.client.WaitForSignal(ctx, sl.agentUUID, sl.secretKey, signalPollTimeoutSec)

@@ -12,6 +12,7 @@ type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Agent         AgentConfig         `yaml:"agent"`
 	Heartbeat     HeartbeatConfig     `yaml:"heartbeat"`
+	WebSocket     WebSocketConfig     `yaml:"websocket"`
 	SystemProfile SystemProfileConfig `yaml:"system_profile"`
 	RemoteSupport RemoteSupportConfig `yaml:"remote_support"`
 	Download      DownloadConfig      `yaml:"download"`
@@ -33,6 +34,13 @@ type AgentConfig struct {
 
 type HeartbeatConfig struct {
 	IntervalSec int `yaml:"interval_sec"`
+}
+
+type WebSocketConfig struct {
+	Enabled         bool   `yaml:"enabled"`
+	URL             string `yaml:"url"`
+	ReconnectMinSec int    `yaml:"reconnect_min_sec"`
+	ReconnectMaxSec int    `yaml:"reconnect_max_sec"`
 }
 
 type SystemProfileConfig struct {
@@ -86,6 +94,12 @@ func Default() *Config {
 			SecretKey: "",
 		},
 		Heartbeat: HeartbeatConfig{IntervalSec: 60},
+		WebSocket: WebSocketConfig{
+			Enabled:         false,
+			URL:             "",
+			ReconnectMinSec: 2,
+			ReconnectMaxSec: 60,
+		},
 		SystemProfile: SystemProfileConfig{
 			ReportIntervalMin: 720,
 		},
@@ -193,6 +207,12 @@ func (c *Config) Validate() error {
 	if c.RemoteSupport.ApprovalTimeoutSec <= 0 {
 		return errors.New("remote_support.approval_timeout_sec must be > 0")
 	}
+	if c.WebSocket.ReconnectMinSec < 0 {
+		return errors.New("websocket.reconnect_min_sec must be >= 0")
+	}
+	if c.WebSocket.ReconnectMaxSec < 0 {
+		return errors.New("websocket.reconnect_max_sec must be >= 0")
+	}
 	return nil
 }
 
@@ -205,5 +225,11 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.RemoteSupport.ApprovalTimeoutSec == 0 {
 		c.RemoteSupport.ApprovalTimeoutSec = 30
+	}
+	if c.WebSocket.ReconnectMinSec == 0 {
+		c.WebSocket.ReconnectMinSec = 2
+	}
+	if c.WebSocket.ReconnectMaxSec == 0 {
+		c.WebSocket.ReconnectMaxSec = 60
 	}
 }

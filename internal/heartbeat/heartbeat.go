@@ -8,6 +8,7 @@ import (
 	"log"
 	"os/user"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"appcenter-agent/internal/api"
@@ -56,6 +57,7 @@ type Sender struct {
 	servicesIntervalMin int
 	servicesLastSent    time.Time
 	servicesLastHash    string
+	wsActive            atomic.Bool
 }
 
 func NewSender(
@@ -101,6 +103,10 @@ func (s *Sender) TriggerNow() {
 	}
 }
 
+func (s *Sender) SetWSActive(active bool) {
+	s.wsActive.Store(active)
+}
+
 func (s *Sender) Start(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(s.cfg.Heartbeat.IntervalSec) * time.Second)
 	defer ticker.Stop()
@@ -113,6 +119,9 @@ func (s *Sender) Start(ctx context.Context) {
 			s.logger.Println("heartbeat stopped")
 			return
 		case <-ticker.C:
+			if s.wsActive.Load() {
+				continue
+			}
 			s.sendOnce(ctx, false)
 		case <-s.triggerCh:
 			s.logger.Println("heartbeat triggered by signal")
