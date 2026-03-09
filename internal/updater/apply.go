@@ -76,7 +76,7 @@ func applyIfPending(
 	}
 	// Never apply downgrades or no-ops. Pending metadata may be stale if server
 	// configuration was rolled back or if the agent was upgraded via MSI.
-	if !isNewerVersion(meta.Version, cfg.Agent.Version) {
+	if !meta.Force && !isNewerVersion(meta.Version, cfg.Agent.Version) {
 		// Already at target version; metadata is stale.
 		return nil
 	}

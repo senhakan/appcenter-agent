@@ -70,3 +70,39 @@ func TestStageIfNeededDownloadsAndWritesMetadata(t *testing.T) {
 		t.Fatalf("pending_update.json missing: %v", err)
 	}
 }
+
+func TestStageIfNeededForceAllowsSameVersion(t *testing.T) {
+	content := []byte("dummy-agent-binary-force")
+	sum := sha256.Sum256(content)
+	expectedHash := fmt.Sprintf("sha256:%x", sum[:])
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(content)
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	cfg := config.Config{
+		Server: config.ServerConfig{URL: srv.URL},
+		Agent: config.AgentConfig{
+			Version:   "1.0.0",
+			UUID:      "u1",
+			SecretKey: "s1",
+		},
+		Download: config.DownloadConfig{TempDir: tmp, BandwidthLimitKBs: 1024},
+	}
+	hb := map[string]any{
+		"latest_agent_version": "1.0.0",
+		"agent_download_url":   "/agent.exe",
+		"agent_hash":           expectedHash,
+		"mode":                 "force",
+	}
+
+	logger := log.New(os.Stdout, "", 0)
+	if err := StageIfNeeded(context.Background(), cfg, hb, logger); err != nil {
+		t.Fatalf("StageIfNeeded force: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tmp, "pending_update.json")); err != nil {
+		t.Fatalf("pending_update.json missing: %v", err)
+	}
+}

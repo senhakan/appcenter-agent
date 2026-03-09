@@ -64,6 +64,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	}
 
 	serviceExe, _ := os.Executable()
+	ensureRemoteSupportFirewallRules(filepath.Dir(serviceExe), logger)
 	traySup := newTraySupervisor(serviceExe, logger)
 	var storeTrayEnabled atomic.Bool
 	var remoteSupportEnabled atomic.Bool
@@ -112,6 +113,12 @@ func runAgent(ctx context.Context, cfgPath string) error {
 	var wsActive atomic.Bool
 	sender.SetWSActive(false)
 	go sender.Start(ctx)
+	wsInventoryKickCh := make(chan struct{}, 1)
+	wsInventoryTicker := time.NewTicker(1 * time.Minute)
+	defer wsInventoryTicker.Stop()
+	wsInventoryHashInterval := 15 * time.Minute
+	var lastWSInventoryHashSent string
+	var lastWSInventoryHashAt time.Time
 
 	signalListener := heartbeat.NewSignalListener(client, cfg.Agent.UUID, cfg.Agent.SecretKey, logger, sender.TriggerNow, &wsActive)
 	go signalListener.Start(ctx)
@@ -141,17 +148,108 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			// installation so the inventory reflects the change before
 			// the next scheduled scan interval.
 			invManager.ForceScan()
+			if wsActive.Load() {
+				select {
+				case wsInventoryKickCh <- struct{}{}:
+				default:
+				}
+			}
 		}
 		return result, err
 	}
 
 	var wsStartOnce sync.Once
+	var wsClient *wsconn.Client
 	var stateMu sync.Mutex
+	restartRequestCh := make(chan string, 1)
+	requestRestart := func(reason string) {
+		select {
+		case restartRequestCh <- reason:
+		default:
+		}
+	}
+	isPayloadForCurrentPlatform := func(payload map[string]any) bool {
+		target, _ := payload["platform"].(string)
+		target = strings.TrimSpace(strings.ToLower(target))
+		if target == "" {
+			return true
+		}
+		return target == strings.ToLower(runtime.GOOS)
+	}
+	extractSelfUpdateChanges := func(payload map[string]any) map[string]any {
+		changes := map[string]any{}
+		if payload == nil {
+			return changes
+		}
+		if wrapped, ok := payload["changes"].(map[string]any); ok && len(wrapped) > 0 {
+			payload = wrapped
+		}
+		if v, ok := payload["latest_agent_version"]; ok {
+			changes["latest_agent_version"] = v
+		}
+		if v, ok := payload["agent_download_url"]; ok {
+			changes["agent_download_url"] = v
+		}
+		if v, ok := payload["agent_hash"]; ok {
+			changes["agent_hash"] = v
+		}
+		if v, ok := payload["mode"]; ok {
+			changes["mode"] = v
+		}
+		return changes
+	}
+	applySelfUpdateChanges := func(changes map[string]any) {
+		if len(changes) == 0 {
+			return
+		}
+		if taskQueue.PendingCount() == 0 {
+			if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {
+				if errors.Is(err, updater.ErrUpdateRestart) {
+					logger.Println("ws: self-update restart triggered")
+					requestRestart("self-update apply")
+					return
+				}
+				logger.Printf("ws: self-update apply failed: %v", err)
+			}
+		}
+		if err := updater.StageIfNeeded(ctx, *cfg, changes, logger); err != nil {
+			logger.Printf("ws: self-update stage failed: %v", err)
+			return
+		}
+		if taskQueue.PendingCount() == 0 {
+			if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {
+				if errors.Is(err, updater.ErrUpdateRestart) {
+					logger.Println("ws: self-update restart triggered")
+					requestRestart("self-update apply")
+					return
+				}
+				logger.Printf("ws: self-update apply failed: %v", err)
+			}
+		}
+	}
+	sendWSInventoryHash := func(force bool, reason string) {
+		if !wsActive.Load() || wsClient == nil {
+			return
+		}
+		hash := strings.TrimSpace(invManager.GetCurrentHash())
+		if hash == "" {
+			return
+		}
+		now := time.Now()
+		if !force && strings.EqualFold(hash, lastWSInventoryHashSent) && now.Sub(lastWSInventoryHashAt) < wsInventoryHashInterval {
+			return
+		}
+		if wsClient.SendEvent(ctx, "agent.inventory.hash", map[string]any{"hash": hash}) {
+			lastWSInventoryHashSent = hash
+			lastWSInventoryHashAt = now
+			logger.Printf("ws: inventory hash sent (%s): %s", reason, hash)
+		}
+	}
 	var startWSClient func()
 	startWSClient = func() {
 		wsStartOnce.Do(func() {
 			hostInfo := system.CollectHostInfo()
-			wsClient := wsconn.NewClient(wsconn.Config{
+			wsClient = wsconn.NewClient(wsconn.Config{
 				ServerURL:       cfg.Server.URL,
 				WSURL:           cfg.WebSocket.URL,
 				AgentUUID:       cfg.Agent.UUID,
@@ -161,6 +259,8 @@ func runAgent(ctx context.Context, cfgPath string) error {
 				Arch:            runtime.GOARCH,
 				Hostname:        hostInfo.Hostname,
 				OSVersion:       hostInfo.OSVersion,
+				IPAddress:       hostInfo.IPAddress,
+				FullIP:          hostInfo.IPAddresses,
 				ReconnectMinSec: cfg.WebSocket.ReconnectMinSec,
 				ReconnectMaxSec: cfg.WebSocket.ReconnectMaxSec,
 				Callbacks: wsconn.Callbacks{
@@ -168,6 +268,10 @@ func runAgent(ctx context.Context, cfgPath string) error {
 						wsActive.Store(true)
 						sender.SetWSActive(true)
 						logger.Println("ws: connected, HTTP heartbeat suppressed")
+						select {
+						case wsInventoryKickCh <- struct{}{}:
+						default:
+						}
 					},
 					OnDisconnected: func() {
 						wsActive.Store(false)
@@ -181,18 +285,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 					OnServerHello: func(payload map[string]any) {
 						logger.Printf("ws: server.hello received")
 						if serverConfig, ok := payload["config"].(map[string]any); ok {
-							if taskQueue.PendingCount() == 0 {
-								if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {
-									if errors.Is(err, updater.ErrUpdateRestart) {
-										logger.Println("ws: self-update restart triggered")
-										return
-									}
-									logger.Printf("ws: self-update apply failed: %v", err)
-								}
-							}
-							if err := updater.StageIfNeeded(ctx, *cfg, serverConfig, logger); err != nil {
-								logger.Printf("ws: self-update stage failed: %v", err)
-							}
+							applySelfUpdateChanges(serverConfig)
 							stateMu.Lock()
 							applyServerConfig(serverConfig, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
 							stateMu.Unlock()
@@ -234,9 +327,36 @@ func runAgent(ctx context.Context, cfgPath string) error {
 						if !ok {
 							return
 						}
+						applySelfUpdateChanges(changes)
 						stateMu.Lock()
 						applyServerConfig(changes, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
 						stateMu.Unlock()
+					},
+					OnBroadcastRestart: func(payload map[string]any) {
+						reason, _ := payload["reason"].(string)
+						reason = strings.TrimSpace(reason)
+						if reason == "" {
+							reason = "ws-broadcast"
+						}
+						logger.Printf("ws: restart requested by server (%s)", reason)
+						requestRestart(reason)
+					},
+					OnBroadcastSelfUpdate: func(payload map[string]any) {
+						if !isPayloadForCurrentPlatform(payload) {
+							logger.Printf("ws: self-update broadcast ignored due to platform mismatch")
+							return
+						}
+						changes := extractSelfUpdateChanges(payload)
+						if len(changes) == 0 {
+							logger.Printf("ws: self-update broadcast ignored due to missing update metadata")
+							return
+						}
+						logger.Printf("ws: self-update broadcast received")
+						applySelfUpdateChanges(changes)
+					},
+					OnInventorySyncRequired: func(payload map[string]any) {
+						// Trigger a heartbeat so existing inventory sync flow can run immediately.
+						sender.TriggerNow()
 					},
 				},
 				Logger: logger,
@@ -259,6 +379,23 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			time.Sleep(200 * time.Millisecond)
 			logger.Println("service loop stopped")
 			return nil
+		case reason := <-restartRequestCh:
+			logger.Printf("service restart requested via ws: %s", reason)
+			return updater.ErrUpdateRestart
+		case <-wsInventoryKickCh:
+			if wsActive.Load() {
+				invManager.ForceScan()
+				sendWSInventoryHash(true, "connect-or-change")
+			}
+		case <-wsInventoryTicker.C:
+			if wsActive.Load() {
+				changed := invManager.ScanIfNeeded()
+				if changed {
+					sendWSInventoryHash(true, "periodic-scan-changed")
+				} else {
+					sendWSInventoryHash(false, "periodic-heartbeat")
+				}
+			}
 		case result := <-pollResults:
 			if taskQueue.PendingCount() == 0 {
 				if err := updater.ApplyIfPending(ctx, *cfg, cfgPath, serviceExe, logger); err != nil {

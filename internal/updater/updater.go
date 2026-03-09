@@ -22,6 +22,7 @@ type StagedUpdate struct {
 	Version      string `json:"version"`
 	FilePath     string `json:"file_path"`
 	Hash         string `json:"hash"`
+	Force        bool   `json:"force,omitempty"`
 	StagedAtUTC  string `json:"staged_at_utc"`
 	SourceURL    string `json:"source_url"`
 	AgentVersion string `json:"agent_version"`
@@ -42,8 +43,14 @@ func StageIfNeeded(
 	if latestVersion == "" || downloadURL == "" || agentHash == "" {
 		return nil
 	}
+	mode, _ := hbConfig["mode"].(string)
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	force := mode == "force"
+	if force {
+		logger.Printf("self-update force mode enabled: current=%s target=%s", cfg.Agent.Version, latestVersion)
+	}
 	// Avoid downgrades or re-staging the same/older version if server config is behind.
-	if !isNewerVersion(latestVersion, cfg.Agent.Version) {
+	if !force && !isNewerVersion(latestVersion, cfg.Agent.Version) {
 		return nil
 	}
 
@@ -84,6 +91,7 @@ func StageIfNeeded(
 		Version:      latestVersion,
 		FilePath:     stagedPath,
 		Hash:         agentHash,
+		Force:        force,
 		StagedAtUTC:  time.Now().UTC().Format(time.RFC3339),
 		SourceURL:    resolvedURL,
 		AgentVersion: cfg.Agent.Version,
