@@ -62,6 +62,14 @@ Bu dosya **AGENT** tarafını kapsar. Server tarafı ayrı bir repository/sessio
   - `cmd/service/core.go` → applyServerConfig artık onWSEnabled callback alıyor
   - Heartbeat'ten `websocket_enabled=true` gelince WS client anında başlıyor (restart gerekmez)
   - v0.1.38 yayınlandı, tüm Windows agent'lar güncellendi ve WS'e geçti
+- Duyuru Modülü (2026-03-10):
+  - `internal/announcement/messagebox_windows.go` → WTSSendMessage API (Session 0 isolation fix)
+  - `internal/announcement/tracker.go` → Critical announcement re-display tracker
+  - `cmd/service/core.go` → handleAnnouncementPush, OnAnnouncementPush callback
+  - `internal/wsconn/types.go` → OnAnnouncementPush callback
+  - `internal/wsconn/client.go` → server.announcement.push case
+  - Heartbeat fallback: PendingAnnouncements in HeartbeatResponse
+  - v0.1.47 yayınlandı, tüm Windows agent'larda E2E test başarılı
 - Test ve derleme:
   - `go test ./...` başarılı
   - `GOOS=windows GOARCH=amd64` cross-build başarılı
@@ -105,6 +113,10 @@ agent/
 │   ├── wsconn/
 │   │   ├── types.go                # WS message struct + callbacks
 │   │   └── client.go               # WS client (auth, hello, reconnect, ping/pong)
+│   ├── announcement/
+│   │   ├── messagebox_windows.go   # WTSSendMessage for user session MessageBox
+│   │   ├── messagebox_nonwindows.go # non-Windows stub
+│   │   └── tracker.go              # Critical announcement re-display tracker
 │   └── ipc/
 │       └── namedpipe.go            # Named Pipe server (service) + client (tray)
 ├── pkg/
