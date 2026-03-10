@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"appcenter-agent/internal/announcement"
 	"appcenter-agent/internal/api"
 	"appcenter-agent/internal/config"
 	"appcenter-agent/internal/downloader"
@@ -160,12 +161,80 @@ func runAgent(ctx context.Context, cfgPath string) error {
 
 	var wsStartOnce sync.Once
 	var wsClient *wsconn.Client
+	announcementTracker := announcement.NewTracker()
 	var stateMu sync.Mutex
 	restartRequestCh := make(chan string, 1)
 	requestRestart := func(reason string) {
 		select {
 		case restartRequestCh <- reason:
 		default:
+		}
+	}
+	parseAnnouncementID := func(v any) (int, bool) {
+		switch t := v.(type) {
+		case int:
+			return t, t > 0
+		case int32:
+			id := int(t)
+			return id, id > 0
+		case int64:
+			id := int(t)
+			return id, id > 0
+		case float64:
+			id := int(t)
+			return id, id > 0
+		case string:
+			id, err := strconv.Atoi(strings.TrimSpace(t))
+			if err != nil || id <= 0 {
+				return 0, false
+			}
+			return id, true
+		default:
+			return 0, false
+		}
+	}
+	handleAnnouncementPush := func(payload map[string]any) {
+		if len(payload) == 0 {
+			return
+		}
+		id, ok := parseAnnouncementID(payload["announcement_id"])
+		if !ok {
+			logger.Printf("announcement: invalid payload, missing announcement_id")
+			return
+		}
+		title, _ := payload["title"].(string)
+		message, _ := payload["message"].(string)
+		priority, _ := payload["priority"].(string)
+		if strings.TrimSpace(priority) == "" {
+			priority = "normal"
+		}
+
+		announcementTracker.Add(id, title, message, priority)
+		go func(announcementID int, annTitle, annMessage, annPriority string) {
+			announcement.ShowMessageBox(annTitle, annMessage, annPriority)
+			if wsClient != nil {
+				if ok := wsClient.SendEvent(ctx, "agent.announcement.ack", map[string]any{
+					"announcement_id": announcementID,
+				}); !ok {
+					logger.Printf("announcement: failed to send ack for id=%d", announcementID)
+				}
+			} else {
+				logger.Printf("announcement: ws client unavailable, ack skipped for id=%d", announcementID)
+			}
+			announcementTracker.Remove(announcementID)
+		}(id, title, message, priority)
+	}
+	processPendingAnnouncements := func(raw any) {
+		items, ok := raw.([]any)
+		if !ok {
+			return
+		}
+		for _, item := range items {
+			payload, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			handleAnnouncementPush(payload)
 		}
 	}
 	isPayloadForCurrentPlatform := func(payload map[string]any) bool {
@@ -290,6 +359,7 @@ func runAgent(ctx context.Context, cfgPath string) error {
 							applyServerConfig(serverConfig, logger, invManager, traySup, &storeTrayEnabled, &remoteSupportEnabled, runtimeMgr, cfg, cfgPath, startWSClient)
 							stateMu.Unlock()
 						}
+						processPendingAnnouncements(payload["pending_announcements"])
 						commands := parseCommandsFromPayload(payload)
 						if len(commands) > 0 {
 							stateMu.Lock()
@@ -358,6 +428,9 @@ func runAgent(ctx context.Context, cfgPath string) error {
 						// Trigger a heartbeat so existing inventory sync flow can run immediately.
 						sender.TriggerNow()
 					},
+					OnAnnouncementPush: func(payload map[string]any) {
+						handleAnnouncementPush(payload)
+					},
 				},
 				Logger: logger,
 			})
@@ -418,6 +491,9 @@ func runAgent(ctx context.Context, cfgPath string) error {
 			stateMu.Lock()
 			handleRSEnd(ctx, result.RemoteSupportEnd, sessionMgr)
 			stateMu.Unlock()
+			for _, pending := range result.PendingAnnouncements {
+				handleAnnouncementPush(pending)
+			}
 
 			// Periodic inventory scan.
 			invManager.ScanIfNeeded()

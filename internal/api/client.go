@@ -186,6 +186,7 @@ type HeartbeatResponse struct {
 	ServerTime           string                `json:"server_time"`
 	Config               map[string]any        `json:"config"`
 	Commands             []Command             `json:"commands"`
+	PendingAnnouncements []map[string]any      `json:"pending_announcements,omitempty"`
 	RemoteSupportRequest *RemoteSupportRequest `json:"remote_support_request,omitempty"`
 	RemoteSupportEnd     *RemoteSupportEnd     `json:"remote_support_end,omitempty"`
 }

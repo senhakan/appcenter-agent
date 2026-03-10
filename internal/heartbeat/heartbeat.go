@@ -34,6 +34,7 @@ type PollResult struct {
 	ServerTime            time.Time
 	Config                map[string]any
 	Commands              []api.Command
+	PendingAnnouncements  []map[string]any
 	InventorySyncRequired bool
 	RemoteSupportRequest  *api.RemoteSupportRequest
 	RemoteSupportEnd      *api.RemoteSupportEnd
@@ -356,6 +357,7 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 			ServerTime:            serverTime,
 			Config:                resp.Config,
 			Commands:              resp.Commands,
+			PendingAnnouncements:  resp.PendingAnnouncements,
 			InventorySyncRequired: inventorySyncRequired,
 			RemoteSupportRequest:  resp.RemoteSupportRequest,
 			RemoteSupportEnd:      resp.RemoteSupportEnd,
