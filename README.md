@@ -115,6 +115,15 @@ Pipeline adimlari:
   - `update.auto_apply=true` ise service, `pending_update.json` buldugunda `appcenter-update-helper.exe` ile kendini replace edip restart eder.
   - MSI default: `update.auto_apply=true` (yeni kurulumlarda self-update otomatik apply olur).
 
+## Session Reporting Notu
+
+- `logged_in_sessions` artik sadece aktif degil, `disconnected` Windows oturumlarini da raporlar.
+- Veri modeli:
+  - `username`
+  - `session_type`: `local` | `rdp`
+  - `session_state`: `active` | `disconnected`
+- Bu sayede server tarafinda kilit ekran / kopuk RDP oturumlari da Ajan Detay ve destek ekranlarinda gorunur.
+
 ## Tray Kullanimi
 
 - Windows GUI mode:

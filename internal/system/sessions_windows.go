@@ -15,6 +15,7 @@ import (
 type LoggedInSession struct {
 	Username    string `json:"username"`
 	SessionType string `json:"session_type"`
+	SessionState string `json:"session_state,omitempty"`
 	LogonID     string `json:"logon_id,omitempty"`
 }
 
@@ -22,6 +23,15 @@ type wtsConnectStateClass uint32
 
 const (
 	wtsActive wtsConnectStateClass = 0
+	wtsConnected wtsConnectStateClass = 1
+	wtsConnectQuery wtsConnectStateClass = 2
+	wtsShadow wtsConnectStateClass = 3
+	wtsDisconnected wtsConnectStateClass = 4
+	wtsIdle wtsConnectStateClass = 5
+	wtsListen wtsConnectStateClass = 6
+	wtsReset wtsConnectStateClass = 7
+	wtsDown wtsConnectStateClass = 8
+	wtsInit wtsConnectStateClass = 9
 )
 
 type wtsSessionInfoW struct {
@@ -67,7 +77,7 @@ func GetLoggedInSessions() []LoggedInSession {
 	sz := unsafe.Sizeof(wtsSessionInfoW{})
 	for i := uint32(0); i < count; i++ {
 		sess := (*wtsSessionInfoW)(unsafe.Pointer(pSessions + uintptr(i)*sz))
-		if sess == nil || sess.State != wtsActive {
+		if sess == nil || !isReportableSessionState(sess.State) {
 			continue
 		}
 
@@ -87,19 +97,29 @@ func GetLoggedInSessions() []LoggedInSession {
 		seen[full] = struct{}{}
 
 		proto := wtsQueryUint16(sess.SessionID, wtsClientProtocolType)
-		sType := "local"
-		if proto == 2 {
-			sType = "rdp"
-		}
+		sType := normalizeSessionType(proto)
+		sState := sessionStateFromWTS(sess.State)
 
 		items = append(items, LoggedInSession{
-			Username:    full,
-			SessionType: sType,
-			LogonID:     fmt.Sprintf("%d", sess.SessionID),
+			Username:     full,
+			SessionType:  sType,
+			SessionState: sState,
+			LogonID:      fmt.Sprintf("%d", sess.SessionID),
 		})
 	}
 
 	return items
+}
+
+func isReportableSessionState(state wtsConnectStateClass) bool {
+	return state == wtsActive || state == wtsDisconnected
+}
+
+func sessionStateFromWTS(state wtsConnectStateClass) string {
+	if state == wtsDisconnected {
+		return sessionStateDisconnected
+	}
+	return sessionStateActive
 }
 
 func wtsQueryString(sessionID uint32, infoClass uint32) string {
@@ -137,4 +157,3 @@ func wtsQueryUint16(sessionID uint32, infoClass uint32) uint16 {
 
 	return *(*uint16)(unsafe.Pointer(pBuf))
 }
-

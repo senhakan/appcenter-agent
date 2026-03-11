@@ -296,9 +296,10 @@ func (s *Sender) sendOnce(ctx context.Context, appsChanged bool) {
 	req.LoggedInSessions = make([]api.LoggedInSession, 0, len(sessions))
 	for _, s := range sessions {
 		req.LoggedInSessions = append(req.LoggedInSessions, api.LoggedInSession{
-			Username:    s.Username,
-			SessionType: s.SessionType,
-			LogonID:     s.LogonID,
+			Username:     s.Username,
+			SessionType:  s.SessionType,
+			SessionState: s.SessionState,
+			LogonID:      s.LogonID,
 		})
 	}
 

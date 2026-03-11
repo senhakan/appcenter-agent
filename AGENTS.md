@@ -33,3 +33,7 @@ and file path so you can open the source for full instructions when using a spec
 - Safety and fallback:
   - If a skill can't be applied cleanly (missing files, unclear instructions), state the issue, pick the next-best approach, and continue.
 
+## Calisma Komutu Protokolu
+
+- `+1`: Yapilan degisiklikleri commit et, remote'a push et ve gerekli dokuman guncellemelerini tamamla.
+- `+2`: Plana gore islemlere onaysiz devam et.

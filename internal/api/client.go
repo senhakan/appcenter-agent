@@ -85,6 +85,7 @@ type InstalledApp struct {
 type LoggedInSession struct {
 	Username    string `json:"username"`
 	SessionType string `json:"session_type"`
+	SessionState string `json:"session_state,omitempty"`
 	LogonID     string `json:"logon_id,omitempty"`
 }
 

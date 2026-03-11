@@ -693,7 +693,8 @@ Bu dosya her teknik degisiklikten sonra guncellenir:
   - `app/api/v1/remote_support.py`:
     - `viewer-ticket` tarafinda parola fallback (session yoksa global VNC password).
   - `app/config.py` + `.env`:
-    - `REMOTE_SUPPORT_VNC_PORT`, `REMOTE_SUPPORT_VNC_PASSWORD` aktif kullanima alindi.
+    - `REMOTE_SUPPORT_VNC_PORT` aktif kullanima alindi.
+    - `REMOTE_SUPPORT_VNC_PASSWORD` daha sonra kaldirildi; guncel yapida kullanilmaz.
 
 - Guacamole web embed sonuc:
   - Custom `guacamole-common-js` render denemelerinde siyah ekran/intermittent sorunlar goruldu.
